@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 from typing import Any, Dict
 
 import pytest
@@ -20,6 +21,7 @@ from app.main import (
     submit_demo_acvp_session_response,
 )
 from app.models import DemoAcvpResponseSubmitRequest, DemoAcvpSessionCreateRequest
+from app.storage.sqlite_store import get_db_path
 
 
 SEED_32_BYTES = "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
@@ -179,6 +181,9 @@ def test_clear_demo_data_requires_confirmation_and_resets_store() -> None:
     session = create_demo_acvp_session(
         DemoAcvpSessionCreateRequest(prompt=_keygen_prompt())
     )
+    artifact_file = get_db_path().parent / "acvp-sessions" / "session-1" / "prompt.json"
+    artifact_file.parent.mkdir(parents=True)
+    artifact_file.write_text("{}", encoding="utf-8")
 
     with pytest.raises(HTTPException) as confirm_exc:
         clear_demo_data()
@@ -186,6 +191,8 @@ def test_clear_demo_data_requires_confirmation_and_resets_store() -> None:
 
     assert confirm_exc.value.status_code == 400
     assert cleaned["deleted"] is True
+    assert not artifact_file.exists()
+    assert str(Path(artifact_file.parents[1])) in cleaned["deletedFiles"]
     with pytest.raises(HTTPException) as get_exc:
         get_demo_acvp_session(session["sessionId"])
     assert get_exc.value.status_code == 404

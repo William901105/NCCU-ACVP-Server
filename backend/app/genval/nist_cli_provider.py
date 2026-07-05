@@ -53,12 +53,15 @@ class NistCliGenValProvider(GenValProvider):
         work_dir.mkdir(parents=True, exist_ok=True)
         internal_projection = _require_file(internal_projection)
         response = _require_file(response)
+        validation_path = work_dir / "validation.json"
+        if validation_path.exists():
+            validation_path.unlink()
         self._run(
             ["-n", str(internal_projection), "-b", str(response)],
             work_dir,
             "validation",
         )
-        return _require_file(work_dir / "validation.json")
+        return _require_file(validation_path)
 
     def _run(self, args: List[str], work_dir: Path, prefix: str) -> subprocess.CompletedProcess[str]:
         dotnet = shutil.which("dotnet")
@@ -95,6 +98,8 @@ class NistCliGenValProvider(GenValProvider):
         stdout_path.write_text(completed.stdout or "", encoding="utf-8")
         stderr_path.write_text(completed.stderr or "", encoding="utf-8")
         if completed.returncode != 0:
+            if prefix == "validation" and (work_dir / "validation.json").exists():
+                return completed
             detail = (completed.stderr or completed.stdout or "").strip()
             if "Orleans" in detail or "Connection" in detail or "Silo" in detail:
                 detail = f"Orleans.ServerHost may not be running. {detail}"

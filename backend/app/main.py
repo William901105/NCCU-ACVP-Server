@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
+import shutil
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -684,15 +686,34 @@ def clear_demo_data(confirm: bool = False) -> Dict[str, Any]:
     if not confirm:
         raise HTTPException(status_code=400, detail="Set confirm=true to clear local demo data")
     db_path = get_db_path()
-    deleted_files = [str(db_path)] if db_path.exists() else []
+    deleted_files = _clear_backend_data_files(db_path)
+    if db_path.exists():
+        deleted_files.append(str(db_path))
     reset_db_for_tests()
     return {
         "deleted": True,
         "deletedFiles": deleted_files,
-        "message": "Local demo database records and current SQLite file were cleared.",
+        "message": "Local demo database records, current SQLite file, and backend/data runtime files were cleared.",
         "demoOnly": True,
         "notProductionAcvp": True,
     }
+
+
+def _clear_backend_data_files(db_path: Path) -> list[str]:
+    data_root = db_path.parent
+    if not data_root.exists():
+        return []
+
+    deleted_files: list[str] = []
+    for child in sorted(data_root.iterdir(), key=lambda value: str(value)):
+        if child == db_path:
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+        deleted_files.append(str(child))
+    return deleted_files
 
 
 def _import_generated_mldsa_bundle(payload: GeneratedMldsaImportRequest) -> ImportSummary:

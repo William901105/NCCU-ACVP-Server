@@ -42,13 +42,11 @@ mkdir -p "${BIN_ROOT}/genval-runner" "${BIN_ROOT}/orleans-server"
 
 dotnet publish "${runner_csproj}" \
   -c Release \
-  -o "${BIN_ROOT}/genval-runner" \
-  /p:BuildGenValPackages=true
+  -o "${BIN_ROOT}/genval-runner"
 
 dotnet publish "${orleans_csproj}" \
   -c Release \
-  -o "${BIN_ROOT}/orleans-server" \
-  /p:BuildGenValPackages=true
+  -o "${BIN_ROOT}/orleans-server"
 
 echo "Published GenValAppRunner to ${BIN_ROOT}/genval-runner"
 echo "Published Orleans.ServerHost to ${BIN_ROOT}/orleans-server"

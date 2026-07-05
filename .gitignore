@@ -6,6 +6,8 @@ __pycache__/
 dist/
 build/
 .nist-bin/
+third_party/nist-acvp-server/**/bin/
+third_party/nist-acvp-server/**/obj/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts

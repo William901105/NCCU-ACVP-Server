@@ -90,15 +90,19 @@ Strict/NIST vector sets store provider metadata:
 
 ## Validation Status
 
-Static and unit checks pass without a local .NET runtime:
+Static and unit checks remain runnable without a live Orleans host:
 
 - `python3 -m py_compile backend/app/acvp_protocol/service.py backend/app/genval/*.py backend/app/acvp_mldsa/nist_registration_mapper.py backend/app/acvp_mldsa/nist_validation_mapper.py`
 - `pytest -q tests/test_acvp_v1_nist_genval_service.py tests/test_mldsa_nist_registration_mapper.py`
 - strict/conformance pytest coverage uses a fake GenVal CLI provider so API shape and result flow can be tested without starting Orleans.
 - `npm run build` passes for the frontend.
 
-Manual NIST build was attempted in this environment and is blocked because
-`dotnet` is not installed. After installing .NET 8, run:
+Real NIST GenVal validation was exercised on 2026-07-05 with .NET SDK 8.0.422.
+`scripts/nist/build_nist_genval.sh` publishes GenValAppRunner and
+Orleans.ServerHost from the vendored source using ProjectReference builds. The
+published binaries are stored under `.nist-bin/`, which is ignored by git.
+
+To run the real integration locally:
 
 ```bash
 ./scripts/nist/build_nist_genval.sh
@@ -107,4 +111,7 @@ Manual NIST build was attempted in this environment and is blocked because
 
 Then create a strict ML-DSA `/acvp/v1/testSessions` session to exercise the real
 GenVal check/generate path and submit an IUT response to exercise
-`internalProjection.json` validation.
+`internalProjection.json` validation. In restricted sandboxes, GenVal calls that
+connect to Orleans can fail with `Operation not permitted` while Orleans reads
+network interface information; run those checks in a shell with normal local
+network permissions.

@@ -30,6 +30,34 @@ The Python backend remains the API and storage owner. NIST C# code is vendored
 as source under `third_party/nist-acvp-server`; it is not a submodule and is not
 started automatically by FastAPI.
 
+## Operational Commands
+
+Copy or refresh the local NIST source from `../ACVP-Server`:
+
+```bash
+./scripts/nist/copy_nist_genval.sh
+```
+
+Build the GenVal runner and Orleans host with .NET 8:
+
+```bash
+./scripts/nist/build_nist_genval.sh
+```
+
+Start Orleans in a separate shell before strict/NIST generation or validation:
+
+```bash
+./scripts/nist/start_orleans.sh
+```
+
+Manual GenVal checks use:
+
+```bash
+./scripts/nist/run_genval.sh check registration.json
+./scripts/nist/run_genval.sh generate registration.json
+./scripts/nist/run_genval.sh validate internalProjection.json response.json
+```
+
 ## Provider Interface
 
 `backend/app/genval/provider.py` defines the shared adapter boundary:

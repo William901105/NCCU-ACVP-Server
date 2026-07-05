@@ -16,9 +16,9 @@ This project supports a local ACVP-style flow:
 - IUT response JSON upload
 - local validation and report export
 
-The backend can generate local ML-DSA vector sets and expected results using the
-native oracle. The validator compares uploaded IUT response fields against those
-expected results.
+Strict ML-DSA `/acvp/v1` sessions use the vendored NIST ACVP-Server GenVal
+adapter when the .NET runner has been built. Local debug sessions still keep the
+Python/native oracle path for development and sample workflows.
 
 ## Current Scope
 
@@ -34,6 +34,7 @@ expected results.
 - `keyGen`: compare `pk` and `sk`
 - `sigGen`: compare `signature`
 - `sigVer`: compare `testPassed`
+- NIST GenVal artifact storage for strict ML-DSA vector generation and validation
 - Result states: `passed`, `failed`, `missing`, `malformed`
 - JSON and Markdown report export
 - IUT response state labels: `waiting`, `loaded`, `ready`, and `error`
@@ -126,6 +127,52 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 The backend enables CORS for `localhost:5173`, `127.0.0.1:5173`, `localhost:3000`, and `127.0.0.1:3000`.
+
+## NIST GenVal Adapter
+
+The NIST ACVP-Server source is vendored under:
+
+```text
+third_party/nist-acvp-server/
+```
+
+The copy is source-only and excludes `.git`, `bin`, and `obj`. Provenance is
+recorded in `third_party/nist-acvp-server/NIST_SOURCE.md`.
+
+Build and run the adapter with:
+
+```bash
+cd ACVP-FIPS204
+./scripts/nist/copy_nist_genval.sh
+./scripts/nist/build_nist_genval.sh
+./scripts/nist/start_orleans.sh
+```
+
+`scripts/nist/run_genval.sh` is a thin wrapper around the built
+`GenValAppRunner` for manual check/generate/validate calls.
+
+Runtime settings:
+
+- `ACVP_GENVAL_RUNNER_DLL`: override the built `GenValAppRunner` DLL path
+- `ACVP_GENVAL_ARTIFACT_ROOT`: override artifact storage, default `backend/data/acvp-sessions`
+- `ACVP_GENVAL_TIMEOUT_SECONDS`: CLI timeout, default `120`
+
+Strict workflow behavior:
+
+- `workflowProfile=strict` or `generationProfile=nist-conformance` maps ML-DSA registration JSON into NIST registration JSON.
+- Generation calls NIST GenVal check/generate and stores `registration.json`, `prompt.json`, `internalProjection.json`, `expectedResults.json`, stdout, and stderr.
+- Validation calls NIST GenVal with `internalProjection.json` and the submitted response JSON.
+- `internalProjection.json` is the formal server-side validation artifact.
+- `expectedResults.json` is retained only for debug/sample inspection and is not used as the formal strict validator.
+
+Local workflow behavior:
+
+- `workflowProfile=local` with `generationProfile=local-debug` keeps the legacy Python/native oracle path.
+- `backend/app/validator.py` and `backend/app/crypto_oracle/` are legacy/debug support for this local path.
+
+If `.NET 8` is not installed or the runner has not been built, strict generation
+returns `NIST_GENVAL_NOT_READY` with the expected build/start commands in the
+error details.
 
 ## Install Frontend
 

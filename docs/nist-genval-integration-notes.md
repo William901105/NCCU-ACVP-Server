@@ -65,3 +65,46 @@ The frontend architecture should not be rewritten. It should continue to call `/
 ## IUT Impact
 
 `IUT-tests/mldsa-native/run_test.py` already accepts direct vector-set payloads and local wrapper payloads. It should remain responsible only for producing ACVP-compatible response JSON from a NIST prompt. It must not read expectedResults or decide pass/fail. Existing fail scripts can continue to mutate generated response JSON for negative testing.
+
+## Implemented Adapter Shape
+
+The current implementation adds:
+
+- `scripts/nist/copy_nist_genval.sh`: copies source from `../ACVP-Server` into `third_party/nist-acvp-server`.
+- `scripts/nist/build_nist_genval.sh`: publishes GenValAppRunner and Orleans.ServerHost into `.nist-bin/`.
+- `scripts/nist/start_orleans.sh`: starts the published Orleans host.
+- `scripts/nist/run_genval.sh`: manually invokes GenValAppRunner check/generate/validate.
+- `backend/app/genval/`: provider abstraction, settings, errors, artifact paths, and CLI implementation.
+- `backend/app/acvp_mldsa/nist_registration_mapper.py`: ML-DSA registration mapper for keyGen, sigGen, and sigVer.
+- `backend/app/acvp_mldsa/nist_validation_mapper.py`: maps NIST `validation.json` into the existing local validation/report shape.
+- `/acvp/v1` service integration for strict or `nist-conformance` generation/validation.
+
+Strict/NIST vector sets store provider metadata:
+
+- `provider: nist-genval`
+- `providerName: NIST ACVP-Server GenValAppRunner`
+- `expectedResultsDebugOnly: true`
+- `hasInternalProjection: true`
+- `nistSourceCommit`
+- `artifactPaths`
+
+## Validation Status
+
+Static and unit checks pass without a local .NET runtime:
+
+- `python3 -m py_compile backend/app/acvp_protocol/service.py backend/app/genval/*.py backend/app/acvp_mldsa/nist_registration_mapper.py backend/app/acvp_mldsa/nist_validation_mapper.py`
+- `pytest -q tests/test_acvp_v1_nist_genval_service.py tests/test_mldsa_nist_registration_mapper.py`
+- strict/conformance pytest coverage uses a fake GenVal CLI provider so API shape and result flow can be tested without starting Orleans.
+- `npm run build` passes for the frontend.
+
+Manual NIST build was attempted in this environment and is blocked because
+`dotnet` is not installed. After installing .NET 8, run:
+
+```bash
+./scripts/nist/build_nist_genval.sh
+./scripts/nist/start_orleans.sh
+```
+
+Then create a strict ML-DSA `/acvp/v1/testSessions` session to exercise the real
+GenVal check/generate path and submit an IUT response to exercise
+`internalProjection.json` validation.

@@ -398,14 +398,16 @@ def _sign_test(ml_dsa: Any, group: Dict[str, Any], test: Dict[str, Any]) -> byte
     sk = _hex_bytes(_required_lookup(test, group, "sk"), "sk")
     deterministic = bool(group.get("deterministic", True))
     rnd = _signing_rnd(test, deterministic)
+    signature_interface = str(group.get("signatureInterface", "internal"))
     external_mu = bool(group.get("externalMu", False))
     if external_mu:
         mu = _hex_bytes(_required_lookup(test, group, "mu"), "mu", expected_len=64)
         return ml_dsa._sign_internal(sk, mu, rnd, external_mu=True)
 
     message = _hex_bytes(_required_lookup(test, group, "message"), "message")
-    m_prime = _formatted_message(group, test, message)
-    return ml_dsa._sign_internal(sk, m_prime, rnd)
+    if signature_interface == "external":
+        return ml_dsa._sign_internal(sk, _formatted_message(group, test, message), rnd)
+    return ml_dsa._sign_internal(sk, message, rnd)
 
 
 def _verify_test(
@@ -424,12 +426,23 @@ def _verify_test(
             mu = _hex_bytes(_required_lookup(test, group, "mu"), "mu", expected_len=64)
             return _verify_internal(ml_dsa, pk, mu, signature, external_mu=True)
         message = _hex_bytes(_required_lookup(test, group, "message"), "message")
-        m_prime = _formatted_message(group, test, message)
-        return _verify_internal(ml_dsa, pk, m_prime, signature)
+        if str(group.get("signatureInterface", "internal")) == "external":
+            return _verify_internal(
+                ml_dsa,
+                pk,
+                _formatted_message(group, test, message),
+                signature,
+            )
+        return _verify_internal(ml_dsa, pk, message, signature)
 
-    if external_mu or _is_prehash(group.get("preHash", "pure")):
+    if (
+        str(group.get("signatureInterface", "internal")) != "external"
+        or external_mu
+        or _is_prehash(group.get("preHash", "pure"))
+    ):
         raise IutRunnerError(
-            "mldsa-py fallback supports only pure message sigVer, not externalMu or preHash"
+            "mldsa-py fallback supports only external pure message sigVer, "
+            "not internal, externalMu, or preHash"
         )
     message = _hex_bytes(_required_lookup(test, group, "message"), "message")
     context = _context_bytes(test, group)

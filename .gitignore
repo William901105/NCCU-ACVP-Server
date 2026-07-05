@@ -5,6 +5,7 @@ __pycache__/
 .env
 dist/
 build/
+.nist-bin/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
@@ -17,6 +18,7 @@ coverage/
 frontend/.vite/
 backend/data/*.sqlite3
 backend/data/*.db
+backend/data/acvp-sessions/
 *.sqlite3
 *.db
 frontend/.env.local

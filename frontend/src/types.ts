@@ -166,6 +166,11 @@ export interface AcvpSessionSummary {
   generationProfile?: AcvpGenerationProfile;
   workflowProfile?: AcvpWorkflowProfile;
   isSample?: boolean;
+  provider?: string | null;
+  providerName?: string | null;
+  expectedResultsDebugOnly?: boolean;
+  hasInternalProjection?: boolean;
+  nistSourceCommit?: string | null;
   productionReady: boolean;
   profile: string;
   demoOnly: boolean;
@@ -191,6 +196,11 @@ export interface AcvpVectorSetSummary {
   revision?: string | null;
   testGroupCount?: number;
   testCaseCount?: number;
+  provider?: string | null;
+  providerName?: string | null;
+  expectedResultsDebugOnly?: boolean;
+  hasInternalProjection?: boolean;
+  nistSourceCommit?: string | null;
   downloadedAt?: string | null;
   submittedAt?: string | null;
   validatedAt?: string | null;

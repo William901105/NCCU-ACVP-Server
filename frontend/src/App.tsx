@@ -85,6 +85,8 @@ export default function App() {
   const iutResponseLabel = responseStatusLabel(iutResponseStatus);
   const canSubmitResponse = Boolean(activeVectorSetId && uploadedResponse != null && iutResponseStatus === "ready") && !isBusy;
   const activeVectorIsSample = vectorSetIsSample(activeVectorSet, activeSession, isSample);
+  const activeProviderLabel = providerShortLabel(activeVectorSummary, activeSession);
+  const activeExpectedDebugOnly = vectorExpectedDebugOnly(activeVectorSummary, activeSession);
   const rawInspectorValue = rawValueForTab(rawTab, activeSession, activeVectorSet, expectedView, uploadedResponse, vectorResult, sessionResults);
 
   useEffect(() => {
@@ -398,6 +400,7 @@ export default function App() {
           <div className="status-cluster">
             <StatusChip label={serverStatus} tone={serverStatus} />
             <StatusChip label={policyWorkflowProfile} tone={policyWorkflowProfile} />
+            <StatusChip label={activeProviderLabel} tone="info" />
             <StatusChip label={activeVectorIsSample ? "sample" : "non-sample"} tone={activeVectorIsSample ? "sample" : "non-sample"} />
             <StatusChip label="not production ACVP" tone="warning" />
           </div>
@@ -610,7 +613,9 @@ export default function App() {
           </div>
           <p className="subtle">
             {expectedView?.reason ??
-              (policyIsStrict
+              (activeExpectedDebugOnly
+                ? "NIST expectedResults are retained for debug/sample inspection only. Validation uses internalProjection.json."
+                : policyIsStrict
                 ? "Strict sample vector sets return direct expected payloads. Strict non-sample vector sets hide expected results."
                 : "Local mode preserves the local expectedResults wrapper behavior.")}
           </p>
@@ -754,7 +759,7 @@ export default function App() {
           <ul className="warning-list">
             <li>This UI is not a production ACVP client.</li>
             <li>Auth, JWT, mTLS, `/large`, and async validation are not implemented.</li>
-            <li>Strict workflow uses nested routes and direct payloads, but the backend remains a local skeleton.</li>
+            <li>Strict ML-DSA generation and validation use the NIST GenVal adapter when the .NET runner is built.</li>
             <li>FIPS203 / ML-KEM backend is not merged yet.</li>
             <li>HTTP 204 only means the response was accepted; disposition comes from GET results.</li>
           </ul>
@@ -842,16 +847,59 @@ function MetadataGrid({ items }: { items: [string, string | number][] }) {
 }
 
 function SessionVectorMetadata({ session, vector }: { session: AcvpSessionDetail | null; vector: AcvpVectorSetSummary | null }) {
+  const generation = vectorGenerationMetadata(session);
+  const expectedDebugOnly = booleanValue(vector?.expectedResultsDebugOnly) ?? booleanValue(generation?.expectedResultsDebugOnly) ?? false;
+  const hasInternalProjection = booleanValue(vector?.hasInternalProjection) ?? booleanValue(generation?.hasInternalProjection) ?? false;
   return (
     <MetadataGrid
       items={[
         ["session", session?.status ?? "none"],
         ["vector", vector?.status ?? "none"],
+        ["provider", providerLabel(vector, session)],
+        ["projection", hasInternalProjection ? "internalProjection" : "none"],
+        ["expected", expectedDebugOnly ? "debug/sample only" : "standard"],
         ["mode", vector?.mode ?? session?.mode ?? "n/a"],
         ["cases", vector?.testCaseCount ?? session?.testCaseCount ?? 0]
       ]}
     />
   );
+}
+
+function providerLabel(vector: AcvpVectorSetSummary | null, session: AcvpSessionDetail | null): string {
+  const generation = vectorGenerationMetadata(session);
+  return (
+    textValue(vector?.providerName) ??
+    textValue(vector?.provider) ??
+    textValue(generation?.providerName) ??
+    textValue(generation?.provider) ??
+    "provider n/a"
+  );
+}
+
+function providerShortLabel(vector: AcvpVectorSetSummary | null, session: AcvpSessionDetail | null): string {
+  const generation = vectorGenerationMetadata(session);
+  return textValue(vector?.provider) ?? textValue(generation?.provider) ?? providerLabel(vector, session);
+}
+
+function vectorExpectedDebugOnly(vector: AcvpVectorSetSummary | null, session: AcvpSessionDetail | null): boolean {
+  const generation = vectorGenerationMetadata(session);
+  return booleanValue(vector?.expectedResultsDebugOnly) ?? booleanValue(generation?.expectedResultsDebugOnly) ?? false;
+}
+
+function vectorGenerationMetadata(session: AcvpSessionDetail | null): Record<string, unknown> | null {
+  const value = session?.vectorGeneration;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+function textValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function booleanValue(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function SummaryStrip({ result, sessionResults }: { result: NormalizedVectorSetResultView | null; sessionResults: NormalizedSessionResultsView | null }) {

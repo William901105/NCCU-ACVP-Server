@@ -109,6 +109,11 @@ app.add_middleware(
 
 app.include_router(acvp_v1_router)
 
+LEGACY_ORACLE_DESCRIPTION = (
+    "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict "
+    "generation and validation use the NIST GenVal adapter, not this endpoint."
+)
+
 
 @app.middleware("http")
 async def acvp_request_id_middleware(request: Request, call_next):
@@ -217,7 +222,13 @@ def validate_mldsa_response_schema(payload: Any = Body(...)) -> Any:
     return {"ok": True, "type": "response", "normalized": normalized}
 
 
-@app.post("/api/oracle/mldsa/keygen", response_model=MldsaKeygenResponse)
+@app.post(
+    "/api/oracle/mldsa/keygen",
+    response_model=MldsaKeygenResponse,
+    deprecated=True,
+    summary="Legacy/debug ML-DSA keyGen oracle",
+    description=LEGACY_ORACLE_DESCRIPTION,
+)
 def mldsa_keygen(payload: MldsaKeygenRequest) -> MldsaKeygenResponse:
     try:
         result = keygen_internal(payload.parameterSet, payload.seed)
@@ -237,6 +248,9 @@ def mldsa_keygen(payload: MldsaKeygenRequest) -> MldsaKeygenResponse:
 @app.post(
     "/api/oracle/mldsa/keygen/expected-results",
     response_model=MldsaKeygenExpectedResultsResponse,
+    deprecated=True,
+    summary="Legacy/debug ML-DSA keyGen expectedResults oracle",
+    description=LEGACY_ORACLE_DESCRIPTION,
 )
 def mldsa_keygen_expected_results(
     payload: MldsaKeygenExpectedResultsRequest,
@@ -256,6 +270,9 @@ def mldsa_keygen_expected_results(
 @app.post(
     "/api/oracle/mldsa/expected-results",
     response_model=MldsaExpectedResultsResponse,
+    deprecated=True,
+    summary="Legacy/debug ML-DSA expectedResults oracle",
+    description=LEGACY_ORACLE_DESCRIPTION,
 )
 def mldsa_expected_results(
     payload: MldsaExpectedResultsRequest,
@@ -276,7 +293,13 @@ def mldsa_expected_results(
     )
 
 
-@app.post("/api/oracle/mldsa/siggen", response_model=MldsaSigGenResponse)
+@app.post(
+    "/api/oracle/mldsa/siggen",
+    response_model=MldsaSigGenResponse,
+    deprecated=True,
+    summary="Legacy/debug ML-DSA sigGen oracle",
+    description=LEGACY_ORACLE_DESCRIPTION,
+)
 def mldsa_siggen(payload: Any = Body(...)) -> MldsaSigGenResponse:
     try:
         request = _parse_siggen_request(payload)
@@ -312,7 +335,13 @@ def mldsa_siggen(payload: Any = Body(...)) -> MldsaSigGenResponse:
     )
 
 
-@app.post("/api/oracle/mldsa/sigver", response_model=MldsaSigVerResponse)
+@app.post(
+    "/api/oracle/mldsa/sigver",
+    response_model=MldsaSigVerResponse,
+    deprecated=True,
+    summary="Legacy/debug ML-DSA sigVer oracle",
+    description=LEGACY_ORACLE_DESCRIPTION,
+)
 def mldsa_sigver(payload: Any = Body(...)) -> MldsaSigVerResponse:
     try:
         request = _parse_sigver_request(payload)

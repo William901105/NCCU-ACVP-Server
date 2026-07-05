@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -14,8 +16,18 @@ from ..acvp_core.algorithm_provider import (
 )
 from ..acvp_core.registry import ProviderNotFoundError, get_provider, list_algorithms
 from ..acvp_mldsa.errors import AcvpSchemaError
+from ..acvp_mldsa.nist_registration_mapper import map_mldsa_registration_container_to_nist
+from ..acvp_mldsa.nist_validation_mapper import normalize_nist_validation
 from ..acvp_mldsa.provider import ensure_mldsa_provider_registered
 from ..acvp_parser import AcvpParseError, normalize_acvp_json, summarize_vector_set
+from ..genval import (
+    GenValArtifactError,
+    GenValConfigurationError,
+    GenValExecutionError,
+    NistCliGenValProvider,
+    get_genval_settings,
+)
+from ..genval.artifacts import vector_set_artifact_dir
 from ..models import AcvpV1TestSessionCreateRequest, AcvpV1VectorSetGenerateRequest
 from ..report import build_report
 from ..storage.sqlite_store import (
@@ -53,6 +65,8 @@ from .workflow_profile import (
 ensure_mldsa_provider_registered()
 
 SKELETON_PROFILE = "local-fips204-skeleton"
+NIST_GENVAL_PROVIDER_ID = "nist-genval"
+NIST_GENVAL_PROVIDER_NAME = "NIST ACVP-Server GenValAppRunner"
 SKELETON_METADATA: Dict[str, Any] = {
     "productionReady": False,
     "profile": SKELETON_PROFILE,
@@ -617,6 +631,12 @@ def _create_registration_session(
             payload.generationProfile,
             generation_provider,
         )
+        generation_profile = _strict_generation_profile_if_needed(
+            generation_profile,
+            generation_provider,
+            workflow_profile=workflow_profile,
+            explicit_profile=payload.generationProfile is not None,
+        )
         campaign_seed = _resolve_campaign_seed(
             payload.campaignSeed,
             registration_container,
@@ -728,6 +748,12 @@ def generate_vector_sets_for_session(
             else session.get("generationProfile"),
             generation_provider,
         )
+        generation_profile = _strict_generation_profile_if_needed(
+            generation_profile,
+            generation_provider,
+            workflow_profile=str(session.get("workflowProfile", LOCAL_WORKFLOW_PROFILE)),
+            explicit_profile=payload.generationProfile is not None,
+        )
         tests_per_group = _resolve_tests_per_group(
             payload.testsPerGroup if payload.testsPerGroup is not None else session.get("testsPerGroup"),
             generation_profile,
@@ -786,22 +812,55 @@ def _generate_and_store_vector_sets(
     is_sample: bool,
     reason: str,
 ) -> Optional[JSONResponse]:
+    use_nist_genval = _should_use_nist_genval(session, generation_profile)
     try:
-        prompts = _generate_vector_sets_with_providers(
-            session["negotiatedCapabilities"],
-            campaign_seed=campaign_seed,
-            tests_per_group=tests_per_group,
-            generation_profile=generation_profile,
-        )
-        prepared = _prepare_generated_vector_sets(
-            session["testSessionId"],
-            prompts,
-            campaign_seed,
-            generation_profile,
-            is_sample,
-        )
+        if use_nist_genval:
+            prepared = _prepare_nist_generated_vector_sets(
+                session,
+                campaign_seed=campaign_seed,
+                generation_profile=generation_profile,
+                is_sample=is_sample,
+            )
+        else:
+            prompts = _generate_vector_sets_with_providers(
+                session["negotiatedCapabilities"],
+                campaign_seed=campaign_seed,
+                tests_per_group=tests_per_group,
+                generation_profile=generation_profile,
+            )
+            prepared = _prepare_generated_vector_sets(
+                session["testSessionId"],
+                prompts,
+                campaign_seed,
+                generation_profile,
+                is_sample,
+            )
     except AcvpSchemaError as exc:
         return acvp_skeleton_error(500, exc.code, exc.message, exc.path)
+    except GenValConfigurationError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_NOT_READY",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
+    except GenValArtifactError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_ARTIFACT_MISSING",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
+    except GenValExecutionError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_EXECUTION_ERROR",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
     except AcvpProviderInputError as exc:
         return acvp_skeleton_error(400, "ORACLE_INPUT_ERROR", str(exc), "$")
     except AcvpProviderExecutionError as exc:
@@ -852,6 +911,7 @@ def _generate_and_store_vector_sets(
             "testsPerGroup": tests_per_group,
             "generationProfile": generation_profile,
             "generatedVectorSetCount": len(vector_set_ids),
+            "provider": NIST_GENVAL_PROVIDER_ID if use_nist_genval else "local-python",
         },
     )
     session["campaignSeed"] = campaign_seed
@@ -873,7 +933,11 @@ def _generate_and_store_vector_sets(
             for vector_set in prepared
         ],
         "generationProfile": generation_profile,
-        "localSkeletonBehavior": True,
+        "provider": NIST_GENVAL_PROVIDER_ID if use_nist_genval else "local-python",
+        "providerName": NIST_GENVAL_PROVIDER_NAME if use_nist_genval else "Local Python ML-DSA provider",
+        "localSkeletonBehavior": not use_nist_genval,
+        "expectedResultsDebugOnly": use_nist_genval,
+        "hasInternalProjection": use_nist_genval,
     }
     save_acvp_session(session)
     return None
@@ -914,6 +978,137 @@ def _prepare_generated_vector_sets(
             }
         )
     return prepared
+
+
+def _prepare_nist_generated_vector_sets(
+    session: Dict[str, Any],
+    *,
+    campaign_seed: str,
+    generation_profile: str,
+    is_sample: bool,
+) -> List[Dict[str, Any]]:
+    settings = get_genval_settings()
+    genval_provider = NistCliGenValProvider(settings)
+    source_commit = _nist_source_commit(settings.project_root)
+    nist_registrations = map_mldsa_registration_container_to_nist(
+        session["registration"],
+        is_sample=is_sample,
+        starting_vs_id=1,
+    )
+
+    prepared: List[Dict[str, Any]] = []
+    for nist_registration in nist_registrations:
+        vector_set_id = str(uuid4())
+        work_dir = vector_set_artifact_dir(
+            settings.artifact_root,
+            session["testSessionId"],
+            vector_set_id,
+        )
+        genval_provider.check_registration(nist_registration, work_dir)
+        artifacts = genval_provider.generate(nist_registration, work_dir)
+        if artifacts.expected_results is None:
+            raise GenValArtifactError(
+                f"NIST GenVal did not produce expectedResults.json in {work_dir}"
+            )
+
+        prompt = _payload_with_is_sample(_read_json_file(artifacts.prompt), is_sample)
+        expected_results = _read_json_file(artifacts.expected_results)
+        provider = _provider_for_prompt(prompt)
+        prompt_vs = provider.validate_prompt(prompt)
+        provider.validate_response(expected_results, expected_mode=prompt_vs["mode"])
+
+        prepared.append(
+            {
+                "vectorSetId": vector_set_id,
+                "testSessionId": session["testSessionId"],
+                "status": VectorSetStatus.CREATED.value,
+                "prompt": prompt,
+                "expectedResults": expected_results,
+                "response": None,
+                "validationResult": None,
+                "report": None,
+                "generatedFromCapabilities": True,
+                "mode": prompt_vs["mode"],
+                "vsId": prompt_vs["vsId"],
+                "campaignSeed": campaign_seed,
+                "generationProfile": generation_profile,
+                "isSample": is_sample,
+                "provider": NIST_GENVAL_PROVIDER_ID,
+                "providerName": NIST_GENVAL_PROVIDER_NAME,
+                "expectedResultsDebugOnly": True,
+                "hasInternalProjection": True,
+                "nistSourceCommit": source_commit,
+                "artifactPaths": _genval_artifact_paths(work_dir, artifacts),
+                **SKELETON_METADATA,
+            }
+        )
+    return prepared
+
+
+def _should_use_nist_genval(
+    session: Dict[str, Any],
+    generation_profile: str,
+) -> bool:
+    workflow_profile = str(session.get("workflowProfile", LOCAL_WORKFLOW_PROFILE))
+    if is_strict_workflow(workflow_profile):
+        return True
+    provider = _provider_for_registration_container(session["registration"])
+    return generation_profile == getattr(provider, "nist_conformance_profile", None)
+
+
+def _genval_artifact_paths(work_dir: Path, artifacts: Any) -> Dict[str, str]:
+    paths = {
+        "root": str(work_dir),
+        "registration": str(artifacts.registration),
+        "prompt": str(artifacts.prompt),
+        "internalProjection": str(artifacts.internal_projection),
+        "checkStdout": str(work_dir / "check.stdout.txt"),
+        "checkStderr": str(work_dir / "check.stderr.txt"),
+    }
+    if artifacts.expected_results is not None:
+        paths["expectedResults"] = str(artifacts.expected_results)
+    if artifacts.stdout is not None:
+        paths["generationStdout"] = str(artifacts.stdout)
+    if artifacts.stderr is not None:
+        paths["generationStderr"] = str(artifacts.stderr)
+    return paths
+
+
+def _read_json_file(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise GenValArtifactError(f"Required NIST GenVal artifact is missing: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise GenValArtifactError(f"NIST GenVal artifact is not valid JSON: {path}") from exc
+
+
+def _write_json_file(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _nist_source_commit(project_root: Path) -> Optional[str]:
+    source_path = project_root / "third_party" / "nist-acvp-server" / "NIST_SOURCE.md"
+    if not source_path.exists():
+        return None
+    for line in source_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("- source git commit:"):
+            value = line.split(":", 1)[1].strip()
+            return value or None
+    return None
+
+
+def _nist_genval_error_details() -> Dict[str, Any]:
+    settings = get_genval_settings()
+    return {
+        "provider": NIST_GENVAL_PROVIDER_ID,
+        "providerName": NIST_GENVAL_PROVIDER_NAME,
+        "runnerDll": str(settings.runner_dll),
+        "artifactRoot": str(settings.artifact_root),
+        "buildCommand": "scripts/nist/build_nist_genval.sh",
+        "orleansCommand": "scripts/nist/start_orleans.sh",
+    }
 
 
 def _resolve_campaign_seed(
@@ -972,6 +1167,21 @@ def _resolve_generation_profile(
             "$.generationProfile",
         )
     return value
+
+
+def _strict_generation_profile_if_needed(
+    generation_profile: str,
+    provider: AcvpAlgorithmProvider,
+    *,
+    workflow_profile: str,
+    explicit_profile: bool,
+) -> str:
+    if explicit_profile or not is_strict_workflow(workflow_profile):
+        return generation_profile
+    nist_profile = getattr(provider, "nist_conformance_profile", None)
+    if isinstance(nist_profile, str):
+        return nist_profile
+    return generation_profile
 
 
 def _resolve_tests_per_group(
@@ -1336,14 +1546,41 @@ def submit_vector_set_results(
     try:
         provider = _provider_for_prompt(vector_set["prompt"])
         provider.validate_response(response, expected_mode=mode)
-        validation_result = provider.validate_results(
-            prompt=vector_set["prompt"],
-            expected_results=vector_set["expectedResults"],
-            response=response,
-        )
+        if _vector_set_uses_nist_genval(vector_set):
+            validation_result = _validate_with_nist_genval(vector_set, response)
+        else:
+            validation_result = provider.validate_results(
+                prompt=vector_set["prompt"],
+                expected_results=vector_set["expectedResults"],
+                response=response,
+            )
         report = build_report(vector_set_id, validation_result)
     except AcvpSchemaError as exc:
         return acvp_skeleton_error(400, exc.code, exc.message, exc.path)
+    except GenValConfigurationError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_NOT_READY",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
+    except GenValArtifactError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_ARTIFACT_MISSING",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
+    except GenValExecutionError as exc:
+        return acvp_skeleton_error(
+            500,
+            "NIST_GENVAL_EXECUTION_ERROR",
+            str(exc),
+            "$",
+            details=_nist_genval_error_details(),
+        )
     except ValueError as exc:
         return acvp_skeleton_error(400, "VALIDATION_ERROR", str(exc), "$")
 
@@ -1380,7 +1617,11 @@ def submit_vector_set_results(
         _transition_vector_if_needed(
             vector_set,
             final_status,
-            reason="Vector set results validated by local skeleton validator.",
+            reason=(
+                "Vector set results validated by NIST GenVal."
+                if _vector_set_uses_nist_genval(vector_set)
+                else "Vector set results validated by local skeleton validator."
+            ),
             metadata={"passed": passed},
         )
         vector_set["validatedAt"] = vector_set["updatedAt"]
@@ -1817,6 +2058,11 @@ def _vector_set_summary(vector_set: Dict[str, Any]) -> Dict[str, Any]:
         "generatedFromCapabilities": vector_set.get("generatedFromCapabilities", False),
         "generationProfile": vector_set.get("generationProfile"),
         "campaignSeed": vector_set.get("campaignSeed"),
+        "provider": vector_set.get("provider"),
+        "providerName": vector_set.get("providerName"),
+        "expectedResultsDebugOnly": vector_set.get("expectedResultsDebugOnly", False),
+        "hasInternalProjection": vector_set.get("hasInternalProjection", False),
+        "nistSourceCommit": vector_set.get("nistSourceCommit"),
         "mode": vector_set.get("mode", prompt_summary.get("mode")),
         "vsId": vector_set.get("vsId", prompt_summary.get("vsId")),
         "downloadedAt": vector_set.get("downloadedAt"),
@@ -1850,6 +2096,60 @@ def _response_with_prompt_metadata(response: Any, vector_set: Dict[str, Any]) ->
     return normalized
 
 
+def _vector_set_uses_nist_genval(vector_set: Dict[str, Any]) -> bool:
+    return vector_set.get("provider") == NIST_GENVAL_PROVIDER_ID
+
+
+def _validate_with_nist_genval(
+    vector_set: Dict[str, Any],
+    response: Any,
+) -> Dict[str, Any]:
+    settings = get_genval_settings()
+    artifact_paths = dict(vector_set.get("artifactPaths") or {})
+    work_dir = Path(
+        artifact_paths.get("root")
+        or vector_set_artifact_dir(
+            settings.artifact_root,
+            vector_set["testSessionId"],
+            vector_set["vectorSetId"],
+        )
+    )
+    internal_projection_value = artifact_paths.get("internalProjection")
+    if not internal_projection_value:
+        raise GenValArtifactError(
+            f"NIST internalProjection path is missing for vector set {vector_set['vectorSetId']}"
+        )
+
+    response_path = work_dir / "response.json"
+    _write_json_file(response_path, response)
+    validation_path = NistCliGenValProvider(settings).validate(
+        Path(internal_projection_value),
+        response_path,
+        work_dir,
+    )
+    validation_payload = _read_json_file(validation_path)
+
+    artifact_paths.update(
+        {
+            "root": str(work_dir),
+            "response": str(response_path),
+            "validation": str(validation_path),
+            "validationStdout": str(work_dir / "validation.stdout.txt"),
+            "validationStderr": str(work_dir / "validation.stderr.txt"),
+        }
+    )
+    vector_set["artifactPaths"] = artifact_paths
+
+    validation_result = normalize_nist_validation(
+        validation_payload,
+        prompt=vector_set["prompt"],
+    )
+    validation_result["metadata"]["providerName"] = NIST_GENVAL_PROVIDER_NAME
+    validation_result["metadata"]["expectedResultsDebugOnly"] = True
+    validation_result["metadata"]["validationArtifact"] = str(validation_path)
+    return validation_result
+
+
 def _vector_set_results_response(
     vector_set: Dict[str, Any],
     acvp_results: Dict[str, Any],
@@ -1867,6 +2167,11 @@ def _vector_set_results_response(
         "status": vector_set["status"],
         "showExpected": bool(vector_set.get("showExpected")),
         "stateHistory": list(vector_set.get("stateHistory", [])),
+        "provider": vector_set.get("provider"),
+        "providerName": vector_set.get("providerName"),
+        "expectedResultsDebugOnly": vector_set.get("expectedResultsDebugOnly", False),
+        "hasInternalProjection": vector_set.get("hasInternalProjection", False),
+        "nistSourceCommit": vector_set.get("nistSourceCommit"),
     }
     if submission_action is not None:
         local_extension["submissionAction"] = submission_action

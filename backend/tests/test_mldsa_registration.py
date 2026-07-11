@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.acvp_mldsa.errors import AcvpSchemaError
-from app.acvp_mldsa.registration_schema import validate_registration
+from app.acvp_core.schema_error import AcvpSchemaError
+from app.algorithms.mldsa.registration_schema import validate_registration
 
 
 def test_valid_keygen_registration() -> None:

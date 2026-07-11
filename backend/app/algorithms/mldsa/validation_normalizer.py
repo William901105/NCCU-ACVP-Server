@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Dict, List, Optional
 
-from ..acvp_parser import extract_algorithm_metadata, normalize_acvp_json
+from ...acvp_parser import extract_algorithm_metadata, normalize_acvp_json
 
 
 def normalize_nist_validation(

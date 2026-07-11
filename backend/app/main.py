@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .acvp_core.bootstrap import build_algorithm_registry
 from .acvp_protocol.errors import acvp_error_response
 from .acvp_protocol.request_context import get_or_create_request_id, reset_request_id, set_request_id
 from .acvp_protocol.routes import router as acvp_v1_router
@@ -18,6 +19,10 @@ from .storage.sqlite_store import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    registry = build_algorithm_registry()
+    if len(registry) == 0:
+        raise RuntimeError("At least one algorithm module must be registered.")
+    app.state.algorithm_registry = registry
     init_db()
     yield
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from .errors import AcvpSchemaError
+from ...acvp_core.schema_error import AcvpSchemaError
 
 
 _HEX_RE = re.compile(r"^[0-9A-Fa-f]*$")

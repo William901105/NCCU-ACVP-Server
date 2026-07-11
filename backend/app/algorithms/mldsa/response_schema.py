@@ -23,7 +23,7 @@ from .constants import (
     SECRET_KEY_BYTES,
     SIGNATURE_BYTES,
 )
-from .errors import AcvpSchemaError
+from ...acvp_core.schema_error import AcvpSchemaError
 from .normalize import normalize_acvp_container
 
 

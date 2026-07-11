@@ -8,6 +8,7 @@ from typing import Any, Dict
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
+from app.acvp_core.bootstrap import build_algorithm_registry
 from app.acvp_protocol.routes import (
     _parse_session_create_request,
     _parse_vector_set_generate_request,
@@ -29,6 +30,7 @@ from app.storage.sqlite_store import (
 
 
 CAMPAIGN_SEED = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+REGISTRY = build_algorithm_registry()
 
 
 def test_openapi_and_route_signatures_expose_no_profile_parameters() -> None:
@@ -98,7 +100,8 @@ def test_new_session_and_vectors_are_strict_nist_only() -> None:
                 "algorithms": [_keygen_registration()],
                 "campaignSeed": CAMPAIGN_SEED,
                 "isSample": False,
-            }
+            },
+            REGISTRY,
         )
     )
     vector_id = created["vectorSetIds"][0]
@@ -119,7 +122,8 @@ def test_new_session_and_vectors_are_strict_nist_only() -> None:
 def test_expected_results_are_hidden_for_non_sample_and_available_for_sample() -> None:
     non_sample = _body(
         create_acvp_v1_test_session(
-            {"algorithms": [_keygen_registration()], "campaignSeed": CAMPAIGN_SEED, "isSample": False}
+            {"algorithms": [_keygen_registration()], "campaignSeed": CAMPAIGN_SEED, "isSample": False},
+            REGISTRY,
         )
     )
     denied = get_acvp_v1_test_session_vector_set_expected(
@@ -137,7 +141,8 @@ def test_expected_results_are_hidden_for_non_sample_and_available_for_sample() -
 
     sample = _body(
         create_acvp_v1_test_session(
-            {"algorithms": [_keygen_registration()], "campaignSeed": CAMPAIGN_SEED, "isSample": True}
+            {"algorithms": [_keygen_registration()], "campaignSeed": CAMPAIGN_SEED, "isSample": True},
+            REGISTRY,
         )
     )
     expected = _body(
@@ -179,11 +184,12 @@ def test_legacy_local_sessions_are_readable_but_cannot_generate_or_validate() ->
         session_id,
         vector_id,
         {"response": {"vsId": 1, "algorithm": "ML-DSA", "mode": "keyGen", "revision": "FIPS204", "testGroups": []}},
+        REGISTRY,
     )
     assert isinstance(blocked, JSONResponse)
     assert blocked.status_code == 409
     assert _body(blocked)["error"]["code"] == "LEGACY_LOCAL_SESSION_NOT_SUPPORTED"
-    generated = generate_acvp_v1_test_session_vector_sets(session_id, {})
+    generated = generate_acvp_v1_test_session_vector_sets(session_id, {}, REGISTRY)
     assert isinstance(generated, JSONResponse)
     assert generated.status_code == 409
     assert _body(generated)["error"]["code"] == "LEGACY_LOCAL_SESSION_NOT_SUPPORTED"

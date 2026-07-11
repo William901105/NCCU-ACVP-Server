@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Response
+from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from ..acvp_core.dependencies import get_algorithm_registry
+from ..acvp_core.registry import AlgorithmModuleRegistry
 from ..models import (
     AcvpV1TestSessionCreateRequest,
     AcvpV1VectorSetGenerateRequest,
@@ -45,8 +47,10 @@ def get_acvp_v1_version() -> Any:
 
 
 @router.get("/algorithms")
-def get_acvp_v1_algorithms() -> Any:
-    return _canonical_response(algorithms())
+def get_acvp_v1_algorithms(
+    registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
+) -> Any:
+    return _canonical_response(algorithms(registry))
 
 
 @router.get("/testSessions")
@@ -64,11 +68,14 @@ def list_acvp_v1_test_sessions(
 
 
 @router.post("/testSessions")
-def create_acvp_v1_test_session(payload: Any = Body(...)) -> Any:
+def create_acvp_v1_test_session(
+    payload: Any = Body(...),
+    registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
+) -> Any:
     request = _parse_session_create_request(payload)
     if isinstance(request, JSONResponse):
         return _canonical_response(request)
-    return _canonical_response(create_test_session(request))
+    return _canonical_response(create_test_session(request, registry))
 
 
 @router.get("/testSessions/{sessionId}")
@@ -105,11 +112,14 @@ def get_acvp_v1_test_session_vector_sets(
 def generate_acvp_v1_test_session_vector_sets(
     sessionId: str,
     payload: Any = Body(default=None),
+    registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
 ) -> Any:
     request = _parse_vector_set_generate_request(payload)
     if isinstance(request, JSONResponse):
         return _canonical_response(request)
-    return _canonical_response(request_nist_vector_sets_for_session(sessionId, request))
+    return _canonical_response(
+        request_nist_vector_sets_for_session(sessionId, request, registry)
+    )
 
 
 @router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}")
@@ -132,6 +142,7 @@ def submit_acvp_v1_test_session_vector_set_results(
     sessionId: str,
     vectorSetId: str,
     payload: Any = Body(...),
+    registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
 ) -> Any:
     parsed = parse_acvp_results_submission_payload(payload)
     if isinstance(parsed, JSONResponse):
@@ -141,6 +152,7 @@ def submit_acvp_v1_test_session_vector_set_results(
             sessionId,
             vectorSetId,
             parsed["response"],
+            registry,
             show_expected=parsed["showExpected"],
         )
     )
@@ -151,6 +163,7 @@ def update_acvp_v1_test_session_vector_set_results(
     sessionId: str,
     vectorSetId: str,
     payload: Any = Body(...),
+    registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
 ) -> Any:
     parsed = parse_acvp_results_submission_payload(payload)
     if isinstance(parsed, JSONResponse):
@@ -160,6 +173,7 @@ def update_acvp_v1_test_session_vector_set_results(
             sessionId,
             vectorSetId,
             parsed["response"],
+            registry,
             show_expected=parsed["showExpected"],
             update=True,
         )
@@ -196,13 +210,21 @@ def delete_acvp_v1_vector_set(vectorSetId: str) -> Any:
     return _canonical_response(cancel_vector_set(None, vectorSetId))
 
 
-def submit_acvp_v1_vector_set_results(vectorSetId: str, payload: Any) -> Any:
+def submit_acvp_v1_vector_set_results(
+    vectorSetId: str,
+    payload: Any,
+    registry: AlgorithmModuleRegistry,
+) -> Any:
     parsed = parse_acvp_results_submission_payload(payload)
     if isinstance(parsed, JSONResponse):
         return _canonical_response(parsed)
     return _canonical_response(
         submit_vector_set_results(
-            None, vectorSetId, parsed["response"], show_expected=parsed["showExpected"]
+            None,
+            vectorSetId,
+            parsed["response"],
+            registry,
+            show_expected=parsed["showExpected"],
         )
     )
 

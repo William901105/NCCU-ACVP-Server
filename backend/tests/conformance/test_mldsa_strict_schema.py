@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 import pytest
 
-from app.acvp_mldsa.constants import (
+from app.algorithms.mldsa.constants import (
     MU_BYTES,
     PUBLIC_KEY_BYTES,
     RND_BYTES,
@@ -13,8 +13,8 @@ from app.acvp_mldsa.constants import (
     SEED_BYTES,
     SIGNATURE_BYTES,
 )
-from app.acvp_mldsa.errors import AcvpSchemaError
-from app.acvp_mldsa.validators import validate_mldsa_response, validate_mldsa_vector_set
+from app.acvp_core.schema_error import AcvpSchemaError
+from app.algorithms.mldsa.validators import validate_mldsa_response, validate_mldsa_vector_set
 
 
 PARAMETER_SET = "ML-DSA-44"

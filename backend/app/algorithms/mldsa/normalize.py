@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from .common import require_object
-from .errors import AcvpSchemaError
+from ...acvp_core.schema_error import AcvpSchemaError
 
 
 def normalize_acvp_container(payload: Any) -> Dict[str, Any]:

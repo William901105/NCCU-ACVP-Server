@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from app.acvp_mldsa.errors import AcvpSchemaError
-from app.acvp_mldsa.response_schema import validate_response
-from app.acvp_mldsa.vector_schema import validate_vector_set
+from app.acvp_core.schema_error import AcvpSchemaError
+from app.algorithms.mldsa.response_schema import validate_response
+from app.algorithms.mldsa.vector_schema import validate_vector_set
 
 
 SAMPLE_ROOT = Path(__file__).resolve().parents[2] / "sample-data"

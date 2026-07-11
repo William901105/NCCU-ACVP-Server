@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from ..acvp_mldsa.common import (
+from ...acvp_core.schema_error import AcvpSchemaError
+from .common import (
     child_path,
     require_array,
     require_field,
     require_object,
     require_string,
 )
-from ..acvp_mldsa.constants import (
+from .constants import (
     ALGORITHM,
     HASH_ALGORITHMS,
     MODES,
@@ -18,8 +19,7 @@ from ..acvp_mldsa.constants import (
     REVISION,
     SIGNATURE_INTERFACES,
 )
-from ..acvp_mldsa.errors import AcvpSchemaError
-from ..acvp_mldsa.validators import validate_mldsa_registration
+from .validators import validate_mldsa_registration
 
 
 SUPPORTED_MLDSA_PARAMETER_SETS = ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]
@@ -51,9 +51,7 @@ _SUPPORTED_SIGNATURE_INTERFACE_SET = set(SUPPORTED_SIGNATURE_INTERFACES)
 _SUPPORTED_PRE_HASH_SET = set(SUPPORTED_PRE_HASH)
 _SUPPORTED_HASH_ALG_SET = set(SUPPORTED_HASH_ALGS_FOR_GENERATION)
 
-NEXT_VECTOR_GENERATION_ACTION = (
-    "Server-side vector generation from negotiated capabilities is planned for Phase 3-4."
-)
+NEXT_VECTOR_GENERATION_ACTION = "NIST GenVal vector generation is available for negotiated capabilities."
 def is_registration_container(payload: Any) -> bool:
     return isinstance(payload, dict) and isinstance(payload.get("algorithms"), list)
 
@@ -186,7 +184,7 @@ def _negotiate_keygen(
         "parameterSets",
         registration.get("parameterSets", []),
         _SUPPORTED_PARAMETER_SET_SET,
-        "Parameter set is not supported by the local ML-DSA oracle.",
+        "Parameter set is not supported by the NIST GenVal ML-DSA module.",
     )
     if not parameter_sets:
         return None
@@ -214,7 +212,7 @@ def _negotiate_signature_mode(
         "signatureInterfaces",
         registration.get("signatureInterfaces", []),
         _SUPPORTED_SIGNATURE_INTERFACE_SET,
-        "Signature interface is not supported by the local ML-DSA oracle.",
+        "Signature interface is not supported by the NIST GenVal ML-DSA module.",
     )
 
     pre_hash = []
@@ -229,7 +227,7 @@ def _negotiate_signature_mode(
             "preHash",
             registration.get("preHash", []),
             _SUPPORTED_PRE_HASH_SET,
-            "preHash value is not supported by the local ML-DSA oracle.",
+            "preHash value is not supported by the NIST GenVal ML-DSA module.",
         )
 
     external_mu = []
@@ -257,7 +255,7 @@ def _negotiate_signature_mode(
                 "hashAlgs",
                 "preHash",
                 "preHash was requested but no hashAlg is supported for generation.",
-                "Phase 3-4/5 spec review",
+                "Review ML-DSA module capability support.",
             )
         )
     if "external" in signature_interfaces and not pre_hash:
@@ -326,7 +324,7 @@ def _negotiate_capabilities(
             "parameterSets",
             capability.get("parameterSets", []),
             _SUPPORTED_PARAMETER_SET_SET,
-            "Parameter set is not supported by the local ML-DSA oracle.",
+            "Parameter set is not supported by the NIST GenVal ML-DSA module.",
         )
         if not parameter_sets:
             continue
@@ -370,8 +368,8 @@ def _negotiate_hash_algs(
             mode,
             "hashAlgs",
             value,
-            "Hash algorithm is not supported by the local ML-DSA oracle.",
-            "Phase 5-2 strict schema/SHAKE review",
+            "Hash algorithm is not supported by the NIST GenVal ML-DSA module.",
+            "Review ML-DSA module capability support.",
         )
         if entry not in unsupported:
             unsupported.append(entry)
@@ -399,7 +397,7 @@ def _unsupported_entry(
     field: str,
     value: Any,
     reason: str,
-    next_phase: str = "Phase 3-4 vector generation",
+    next_phase: str = "Review algorithm module capability support.",
 ) -> Dict[str, Any]:
     return {
         "mode": mode,

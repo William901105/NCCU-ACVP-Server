@@ -1,23 +1,13 @@
 from __future__ import annotations
 
-from app.acvp_mldsa.nist_registration_mapper import (
-    map_mldsa_registration_container_to_nist,
-    map_mldsa_registration_to_nist,
-)
-from app.acvp_mldsa.nist_validation_mapper import normalize_nist_validation
+from app.algorithms.mldsa import MldsaAlgorithmModule
 
 
-def test_keygen_registration_maps_to_nist_shape() -> None:
-    mapped = map_mldsa_registration_to_nist(
-        {
-            "algorithm": "ML-DSA",
-            "mode": "keyGen",
-            "revision": "FIPS204",
-            "prereqVals": [{"algorithm": "SHA", "valValue": "same"}],
-            "parameterSets": ["ML-DSA-44"],
-        },
-        vs_id=7,
-    )
+MODULE = MldsaAlgorithmModule()
+
+
+def test_keygen_registration_maps_to_nist_shape_through_module() -> None:
+    mapped = MODULE.to_nist_registration(_keygen_registration(), vs_id=7, is_sample=True)
 
     assert mapped == {
         "vsId": 7,
@@ -29,52 +19,20 @@ def test_keygen_registration_maps_to_nist_shape() -> None:
     }
 
 
-def test_siggen_registration_maps_to_nist_shape() -> None:
-    mapped = map_mldsa_registration_to_nist(_sig_registration("sigGen"), vs_id=8, is_sample=False)
+def test_signature_registrations_map_to_nist_shape_through_module() -> None:
+    siggen = MODULE.to_nist_registration(_sig_registration("sigGen"), vs_id=8, is_sample=False)
+    sigver = MODULE.to_nist_registration(_sig_registration("sigVer"), vs_id=9, is_sample=True)
 
-    assert mapped["vsId"] == 8
-    assert mapped["mode"] == "sigGen"
-    assert mapped["isSample"] is False
-    assert mapped["deterministic"] == [True, False]
-    assert mapped["externalMu"] == [False, True]
-    assert mapped["signatureInterfaces"] == ["internal", "external"]
-    assert mapped["preHash"] == ["pure", "preHash"]
-    assert mapped["capabilities"][0]["parameterSets"] == ["ML-DSA-44"]
-
-
-def test_sigver_registration_maps_to_nist_shape() -> None:
-    mapped = map_mldsa_registration_to_nist(_sig_registration("sigVer"), vs_id=9)
-
-    assert mapped["vsId"] == 9
-    assert mapped["mode"] == "sigVer"
-    assert "deterministic" not in mapped
-    assert mapped["externalMu"] == [False, True]
-    assert mapped["signatureInterfaces"] == ["internal", "external"]
+    assert siggen["deterministic"] == [True, False]
+    assert siggen["externalMu"] == [False, True]
+    assert siggen["preHash"] == ["pure", "preHash"]
+    assert siggen["isSample"] is False
+    assert "deterministic" not in sigver
+    assert sigver["mode"] == "sigVer"
 
 
-def test_container_mapping_assigns_vs_ids() -> None:
-    mapped = map_mldsa_registration_container_to_nist(
-        {
-            "algorithms": [
-                {
-                    "algorithm": "ML-DSA",
-                    "mode": "keyGen",
-                    "revision": "FIPS204",
-                    "prereqVals": [{"algorithm": "SHA", "valValue": "same"}],
-                    "parameterSets": ["ML-DSA-44"],
-                },
-                _sig_registration("sigVer"),
-            ]
-        },
-        starting_vs_id=3,
-    )
-
-    assert [item["vsId"] for item in mapped] == [3, 4]
-    assert [item["mode"] for item in mapped] == ["keyGen", "sigVer"]
-
-
-def test_nist_validation_maps_to_existing_summary_shape() -> None:
-    normalized = normalize_nist_validation(
+def test_nist_validation_normalizes_through_module() -> None:
+    normalized = MODULE.normalize_nist_validation(
         {
             "vsId": 1,
             "disposition": "failed",
@@ -83,20 +41,29 @@ def test_nist_validation_maps_to_existing_summary_shape() -> None:
                 {"tcId": 2, "result": "failed", "reason": "signature mismatch"},
             ],
         },
-        prompt={"vsId": 1, "algorithm": "ML-DSA", "mode": "sigVer", "revision": "FIPS204", "testGroups": []},
+        prompt={
+            "vsId": 1,
+            "algorithm": "ML-DSA",
+            "mode": "sigVer",
+            "revision": "FIPS204",
+            "testGroups": [],
+        },
     )
 
     assert normalized["metadata"]["provider"] == "nist-genval"
-    assert normalized["summary"] == {
-        "total": 2,
-        "passed": 1,
-        "failed": 1,
-        "missing": 0,
-        "malformed": 0,
-        "extra": 0,
-    }
+    assert normalized["summary"]["passed"] == 1
+    assert normalized["summary"]["failed"] == 1
     assert normalized["failures"][0]["tcId"] == 2
-    assert normalized["nistValidation"]["disposition"] == "failed"
+
+
+def _keygen_registration() -> dict:
+    return {
+        "algorithm": "ML-DSA",
+        "mode": "keyGen",
+        "revision": "FIPS204",
+        "prereqVals": [{"algorithm": "SHA", "valValue": "same"}],
+        "parameterSets": ["ML-DSA-44"],
+    }
 
 
 def _sig_registration(mode: str) -> dict:

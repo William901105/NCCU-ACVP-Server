@@ -9,7 +9,8 @@ from typing import Any, Dict, Tuple
 from fastapi import Response
 from fastapi.responses import JSONResponse
 
-from app.acvp_mldsa.provider import get_mldsa_provider
+from app.acvp_core.bootstrap import build_algorithm_registry
+from app.algorithms.mldsa import MldsaAlgorithmModule
 from app.acvp_protocol import service
 from app.acvp_protocol.routes import (
     create_acvp_v1_test_session,
@@ -23,6 +24,7 @@ from app.storage.sqlite_store import ACVP_SKELETON_VECTOR_SET_STORE, save_acvp_v
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "nist" / "mldsa"
 SEED = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+REGISTRY = build_algorithm_registry()
 
 
 def test_removed_runtime_endpoints_return_404() -> None:
@@ -53,7 +55,7 @@ def test_openapi_contains_only_strict_production_surface() -> None:
 
 
 def test_provider_has_no_local_execution_methods() -> None:
-    provider = get_mldsa_provider()
+    provider = MldsaAlgorithmModule()
     for method in ("generate_" + "vector_sets", "generate_" + "expected_results", "validate_" + "results"):
         assert not hasattr(provider, method)
 
@@ -66,6 +68,7 @@ def test_nist_genval_validates_passed_and_failed_responses_for_all_modes() -> No
             session_id,
             vector_id,
             {"response": passed_response},
+            REGISTRY,
         )
         assert isinstance(passed, Response)
         assert passed.status_code == 204
@@ -78,6 +81,7 @@ def test_nist_genval_validates_passed_and_failed_responses_for_all_modes() -> No
             failed_session_id,
             failed_vector_id,
             {"response": failed_response},
+            REGISTRY,
         )
         assert isinstance(failed, Response)
         assert failed.status_code == 204
@@ -95,6 +99,7 @@ def test_missing_internal_projection_returns_nist_artifact_error() -> None:
         session_id,
         vector_id,
         {"response": _fixture("keyGen", "response.pass.json")},
+        REGISTRY,
     )
     assert isinstance(response, JSONResponse)
     assert response.status_code == 500
@@ -114,7 +119,8 @@ def test_genval_configuration_failure_does_not_fallback(monkeypatch: Any) -> Non
 
     monkeypatch.setattr(service, "NistCliGenValProvider", UnavailableGenVal)
     response = create_acvp_v1_test_session(
-        {"algorithms": [_registration("keyGen")], "campaignSeed": SEED}
+        {"algorithms": [_registration("keyGen")], "campaignSeed": SEED},
+        REGISTRY,
     )
     assert isinstance(response, JSONResponse)
     assert response.status_code == 500
@@ -124,7 +130,8 @@ def test_genval_configuration_failure_does_not_fallback(monkeypatch: Any) -> Non
 def _create_session(mode: str) -> Tuple[str, str]:
     created = _body(
         create_acvp_v1_test_session(
-            {"algorithms": [_registration(mode)], "campaignSeed": SEED, "isSample": False}
+            {"algorithms": [_registration(mode)], "campaignSeed": SEED, "isSample": False},
+            REGISTRY,
         )
     )
     return created["testSessionId"], created["vectorSetIds"][0]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.acvp_mldsa.errors import AcvpSchemaError
-from app.acvp_mldsa.normalize import normalize_acvp_container
+from app.acvp_core.schema_error import AcvpSchemaError
+from app.algorithms.mldsa.normalize import normalize_acvp_container
 
 
 def test_normalize_accepts_nist_array_container() -> None:
@@ -35,4 +35,3 @@ def test_normalize_rejects_invalid_container() -> None:
         normalize_acvp_container("not-json-object")
 
     assert exc_info.value.code == "invalid_container"
-

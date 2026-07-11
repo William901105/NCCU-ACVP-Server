@@ -10,14 +10,10 @@ from uuid import uuid4
 
 from fastapi.responses import JSONResponse
 
-from ..acvp_core.algorithm_provider import (
-    AcvpAlgorithmProvider,
-)
-from ..acvp_core.registry import ProviderNotFoundError, get_provider, list_algorithms
-from ..acvp_mldsa.errors import AcvpSchemaError
-from ..acvp_mldsa.nist_registration_mapper import map_mldsa_registration_container_to_nist
-from ..acvp_mldsa.nist_validation_mapper import normalize_nist_validation
-from ..acvp_mldsa.provider import ensure_mldsa_provider_registered
+from ..acvp_core.algorithm_identity import AlgorithmIdentity
+from ..acvp_core.algorithm_module import AcvpAlgorithmModule, normalize_module_validation
+from ..acvp_core.registry import AlgorithmModuleRegistry, ModuleNotFoundError
+from ..acvp_core.schema_error import AcvpSchemaError
 from ..acvp_parser import AcvpParseError, normalize_acvp_json, summarize_vector_set
 from ..genval import (
     GenValArtifactError,
@@ -56,8 +52,6 @@ from .state_machine import (
 )
 from .envelope import EXECUTION_BACKEND, WORKFLOW_POLICY
 
-ensure_mldsa_provider_registered()
-
 NIST_GENVAL_PROVIDER_ID = "nist-genval"
 NIST_GENVAL_PROVIDER_NAME = "NIST ACVP-Server GenValAppRunner"
 SERVER_METADATA: Dict[str, Any] = {
@@ -67,8 +61,6 @@ SERVER_METADATA: Dict[str, Any] = {
 
 NIST_REFERENCES = [
     "https://pages.nist.gov/ACVP/draft-fussell-acvp-spec.html",
-    "https://pages.nist.gov/ACVP/draft-celi-acvp-ml-dsa.html",
-    "https://csrc.nist.gov/pubs/fips/204/final",
 ]
 
 _HEX_RE = re.compile(r"^[0-9A-Fa-f]+$")
@@ -111,48 +103,16 @@ def version() -> Dict[str, Any]:
     )
 
 
-def algorithms() -> Dict[str, Any]:
+def algorithms(registry: AlgorithmModuleRegistry) -> Dict[str, Any]:
     return with_server_metadata(
-        {
-            "algorithms": [
-                {
-                    "algorithm": "ML-DSA",
-                    "revision": "FIPS204",
-                    "modes": ["keyGen", "sigGen", "sigVer"],
-                    "parameterSets": ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
-                    "signatureInterfaces": ["internal", "external"],
-                    "internal": {
-                        "externalMu": [False, True],
-                        "deterministic": [False, True],
-                    },
-                    "external": {
-                        "preHash": ["pure", "preHash"],
-                        "context": True,
-                        "hashAlgs": [
-                            "SHA2-224",
-                            "SHA2-256",
-                            "SHA2-384",
-                            "SHA2-512",
-                            "SHA2-512/224",
-                            "SHA2-512/256",
-                            "SHA3-224",
-                            "SHA3-256",
-                            "SHA3-384",
-                            "SHA3-512",
-                            "SHAKE-128",
-                            "SHAKE-256",
-                        ],
-                    },
-                    "workflowPolicy": WORKFLOW_POLICY,
-                    "executionBackend": EXECUTION_BACKEND,
-                    "nistReferences": NIST_REFERENCES,
-                }
-            ]
-        }
+        {"algorithms": registry.list_descriptors()}
     )
 
 
-def _validate_registration_container_with_providers(payload: Any) -> Dict[str, Any]:
+def _validate_registration_container_with_modules(
+    payload: Any,
+    registry: AlgorithmModuleRegistry,
+) -> Dict[str, Any]:
     obj = _require_json_object(payload, "$")
     algorithms_value = _require_json_field(obj, "algorithms", "$")
     algorithms = _require_json_array(algorithms_value, "$.algorithms", non_empty=True)
@@ -175,33 +135,34 @@ def _validate_registration_container_with_providers(payload: Any) -> Dict[str, A
             _require_json_field(registration, "revision", item_path),
             _child_path(item_path, "revision"),
         )
-        provider = _provider_for_identity(algorithm, mode, revision, item_path)
+        module = _module_for_identity(registry, algorithm, mode, revision, item_path)
         try:
-            normalized = provider.validate_registration(registration)
+            normalized = module.validate_registration(registration)
         except AcvpSchemaError as exc:
             raise _with_prefixed_path(exc, item_path) from exc
 
         normalized_algorithm = str(normalized.get("algorithm"))
         normalized_mode = str(normalized.get("mode"))
         normalized_revision = str(normalized.get("revision"))
-        if not provider.supports(normalized_algorithm, normalized_mode, normalized_revision):
-            raise _provider_not_found_schema_error(
-                ProviderNotFoundError(
-                    normalized_algorithm,
-                    normalized_mode,
-                    normalized_revision,
-                ),
+        normalized_identity = AlgorithmIdentity(
+            normalized_algorithm,
+            normalized_mode,
+            normalized_revision,
+        )
+        if not module.supports(normalized_identity):
+            raise _module_not_found_schema_error(
+                registry,
+                ModuleNotFoundError(normalized_identity),
                 item_path,
             )
 
-        key = (normalized_algorithm, normalized_mode, normalized_revision)
-        if key in seen:
+        if normalized_identity in seen:
             raise AcvpSchemaError(
                 "duplicate_registration",
                 "Duplicate algorithm/mode/revision registration.",
                 _child_path(item_path, "mode"),
             )
-        seen.add(key)
+        seen.add(normalized_identity)
         normalized_algorithms.append(normalized)
 
     container: Dict[str, Any] = {"algorithms": normalized_algorithms}
@@ -219,7 +180,10 @@ def _validate_registration_container_with_providers(payload: Any) -> Dict[str, A
     return container
 
 
-def _negotiate_capabilities_with_providers(container: Dict[str, Any]) -> Dict[str, Any]:
+def _negotiate_capabilities_with_modules(
+    container: Dict[str, Any],
+    registry: AlgorithmModuleRegistry,
+) -> Dict[str, Any]:
     negotiated: List[Dict[str, Any]] = []
     unsupported: List[Dict[str, Any]] = []
     warnings: List[Dict[str, Any]] = []
@@ -230,11 +194,11 @@ def _negotiate_capabilities_with_providers(container: Dict[str, Any]) -> Dict[st
         algorithm = str(registration["algorithm"])
         mode = str(registration["mode"])
         revision = str(registration["revision"])
-        provider = _provider_for_identity(algorithm, mode, revision, item_path)
+        module = _module_for_identity(registry, algorithm, mode, revision, item_path)
         if (algorithm, revision) not in identities:
             identities.append((algorithm, revision))
         try:
-            result = provider.negotiate_capabilities(registration)
+            result = module.negotiate_capabilities(registration)
         except AcvpSchemaError as exc:
             raise _with_prefixed_path(exc, item_path) from exc
 
@@ -265,7 +229,10 @@ def _negotiate_capabilities_with_providers(container: Dict[str, Any]) -> Dict[st
     }
 
 
-def _provider_for_prompt(prompt: Any) -> AcvpAlgorithmProvider:
+def _module_for_prompt(
+    prompt: Any,
+    registry: AlgorithmModuleRegistry,
+) -> AcvpAlgorithmModule:
     try:
         vector_set = normalize_acvp_json(prompt)
     except AcvpParseError as exc:
@@ -282,77 +249,54 @@ def _provider_for_prompt(prompt: Any) -> AcvpAlgorithmProvider:
         _require_json_field(vector_set, "revision", "$"),
         "$.revision",
     )
-    return _provider_for_identity(algorithm, mode, revision, "$")
+    return _module_for_identity(registry, algorithm, mode, revision, "$")
 
 
-def _provider_for_registration_container(
-    registration_container: Dict[str, Any],
-) -> AcvpAlgorithmProvider:
-    algorithms = registration_container.get("algorithms")
-    if not isinstance(algorithms, list) or not algorithms:
-        raise AcvpSchemaError(
-            "missing_required_field",
-            "Registration container must include at least one algorithm.",
-            "$.algorithms",
-        )
-    first_registration = _require_json_object(algorithms[0], "$.algorithms[0]")
-    algorithm = _require_json_string(
-        _require_json_field(first_registration, "algorithm", "$.algorithms[0]"),
-        "$.algorithms[0].algorithm",
-    )
-    mode = _require_json_string(
-        _require_json_field(first_registration, "mode", "$.algorithms[0]"),
-        "$.algorithms[0].mode",
-    )
-    revision = _require_json_string(
-        _require_json_field(first_registration, "revision", "$.algorithms[0]"),
-        "$.algorithms[0].revision",
-    )
-    return _provider_for_identity(algorithm, mode, revision, "$.algorithms[0]")
-
-
-def _provider_for_identity(
+def _module_for_identity(
+    registry: AlgorithmModuleRegistry,
     algorithm: str,
     mode: str,
     revision: str,
     path: str,
-) -> AcvpAlgorithmProvider:
+) -> AcvpAlgorithmModule:
+    identity = AlgorithmIdentity(algorithm, mode, revision)
     try:
-        return get_provider(algorithm, mode, revision)
-    except ProviderNotFoundError as exc:
-        raise _provider_not_found_schema_error(exc, path) from exc
+        return registry.get_module(identity)
+    except ModuleNotFoundError as exc:
+        raise _module_not_found_schema_error(registry, exc, path) from exc
 
 
-def _provider_not_found_schema_error(
-    exc: ProviderNotFoundError,
+def _module_not_found_schema_error(
+    registry: AlgorithmModuleRegistry,
+    exc: ModuleNotFoundError,
     path: str,
 ) -> AcvpSchemaError:
-    summaries = list_algorithms()
-    algorithm_summary = next(
+    identity = exc.identity
+    descriptors = registry.list_descriptors()
+    descriptor = next(
         (
-            summary
-            for summary in summaries
-            if summary.get("algorithm") == exc.algorithm
+            item
+            for item in descriptors
+            if item.get("algorithm") == identity.algorithm
         ),
         None,
     )
-    if algorithm_summary is None:
+    if descriptor is None:
         return AcvpSchemaError(
             "unsupported_algorithm",
-            f"Unsupported algorithm provider: {exc.algorithm}",
+            f"Unsupported algorithm module: {identity.algorithm}",
             _child_path(path, "algorithm"),
         )
 
-    revisions = set(algorithm_summary.get("revisions", []))
-    if exc.revision not in revisions:
+    if descriptor.get("revision") != identity.revision:
         return AcvpSchemaError(
             "unsupported_revision",
-            f"Unsupported revision for {exc.algorithm}: {exc.revision}",
+            f"Unsupported revision for {identity.algorithm}: {identity.revision}",
             _child_path(path, "revision"),
         )
     return AcvpSchemaError(
         "invalid_mode",
-        f"Unsupported mode for {exc.algorithm}/{exc.revision}: {exc.mode}",
+        f"Unsupported mode for {identity.algorithm}/{identity.revision}: {identity.mode}",
         _child_path(path, "mode"),
     )
 
@@ -435,7 +379,10 @@ def list_test_sessions(
     )
 
 
-def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
+def create_test_session(
+    payload: AcvpV1TestSessionCreateRequest,
+    registry: AlgorithmModuleRegistry,
+) -> Any:
     """Create a strict registration session; prompt sessions are intentionally absent."""
     try:
         container_payload: Dict[str, Any] = {"algorithms": payload.algorithms}
@@ -443,8 +390,14 @@ def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
             container_payload["label"] = payload.label
         if payload.metadata is not None:
             container_payload["metadata"] = payload.metadata
-        registration_container = _validate_registration_container_with_providers(container_payload)
-        negotiated_capabilities = _negotiate_capabilities_with_providers(registration_container)
+        registration_container = _validate_registration_container_with_modules(
+            container_payload,
+            registry,
+        )
+        negotiated_capabilities = _negotiate_capabilities_with_modules(
+            registration_container,
+            registry,
+        )
         campaign_seed = _resolve_campaign_seed(
             payload.campaignSeed,
             registration_container,
@@ -489,6 +442,7 @@ def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
     if payload.autoGenerateVectorSets:
         generated = _generate_and_store_vector_sets(
             session,
+            registry=registry,
             campaign_seed=campaign_seed,
             tests_per_group=tests_per_group,
             expires_at=expires_at,
@@ -507,6 +461,7 @@ def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
 def request_nist_vector_sets_for_session(
     session_id: str,
     payload: AcvpV1VectorSetGenerateRequest,
+    registry: AlgorithmModuleRegistry,
 ) -> Any:
     session = _get_session(session_id)
     if isinstance(session, JSONResponse):
@@ -553,6 +508,7 @@ def request_nist_vector_sets_for_session(
 
     generated = _generate_and_store_vector_sets(
         session,
+        registry=registry,
         campaign_seed=campaign_seed,
         tests_per_group=tests_per_group,
         expires_at=_expires_at_from_seconds(payload.expiresInSeconds) or session.get("expiresAt"),
@@ -592,6 +548,7 @@ def _registration_session_response(session: Dict[str, Any]) -> Dict[str, Any]:
 def _generate_and_store_vector_sets(
     session: Dict[str, Any],
     *,
+    registry: AlgorithmModuleRegistry,
     campaign_seed: str,
     tests_per_group: int,
     expires_at: Optional[str],
@@ -601,6 +558,7 @@ def _generate_and_store_vector_sets(
     try:
         prepared = _prepare_nist_generated_vector_sets(
             session,
+            registry=registry,
             campaign_seed=campaign_seed,
             is_sample=is_sample,
         )
@@ -702,16 +660,17 @@ def _generate_and_store_vector_sets(
 def _prepare_nist_generated_vector_sets(
     session: Dict[str, Any],
     *,
+    registry: AlgorithmModuleRegistry,
     campaign_seed: str,
     is_sample: bool,
 ) -> List[Dict[str, Any]]:
     settings = get_genval_settings()
     genval_provider = NistCliGenValProvider(settings)
     source_commit = _nist_source_commit(settings.project_root)
-    nist_registrations = map_mldsa_registration_container_to_nist(
+    nist_registrations = _map_registrations_to_nist(
         session["registration"],
+        registry,
         is_sample=is_sample,
-        starting_vs_id=1,
     )
 
     prepared: List[Dict[str, Any]] = []
@@ -731,9 +690,9 @@ def _prepare_nist_generated_vector_sets(
 
         prompt = _payload_with_is_sample(_read_json_file(artifacts.prompt), is_sample)
         expected_results = _read_json_file(artifacts.expected_results)
-        provider = _provider_for_prompt(prompt)
-        prompt_vs = provider.validate_prompt(prompt)
-        provider.validate_response(expected_results, expected_mode=prompt_vs["mode"])
+        module = _module_for_prompt(prompt, registry)
+        prompt_vs = module.validate_prompt(prompt)
+        module.validate_response(expected_results, expected_mode=prompt_vs["mode"])
 
         prepared.append(
             {
@@ -760,6 +719,40 @@ def _prepare_nist_generated_vector_sets(
             }
         )
     return prepared
+
+
+def _map_registrations_to_nist(
+    registration_container: Dict[str, Any],
+    registry: AlgorithmModuleRegistry,
+    *,
+    is_sample: bool,
+) -> List[Dict[str, Any]]:
+    registrations = _require_json_array(
+        registration_container.get("algorithms"),
+        "$.algorithms",
+        non_empty=True,
+    )
+    mapped: List[Dict[str, Any]] = []
+    for index, value in enumerate(registrations):
+        path = _child_path("$.algorithms", index)
+        registration = _require_json_object(value, path)
+        module = _module_for_identity(
+            registry,
+            _require_json_string(registration.get("algorithm"), _child_path(path, "algorithm")),
+            _require_json_string(registration.get("mode"), _child_path(path, "mode")),
+            _require_json_string(registration.get("revision"), _child_path(path, "revision")),
+            path,
+        )
+        normalized = module.validate_registration(registration)
+        mapped.append(
+            module.to_nist_registration(
+                normalized,
+                vs_id=index + 1,
+                is_sample=is_sample,
+            )
+        )
+
+    return mapped
 
 
 def _genval_artifact_paths(work_dir: Path, artifacts: Any) -> Dict[str, str]:
@@ -1053,6 +1046,7 @@ def submit_vector_set_results(
     session_id: Optional[str],
     vector_set_id: str,
     response: Any,
+    registry: AlgorithmModuleRegistry,
     *,
     show_expected: bool = False,
     update: bool = False,
@@ -1104,9 +1098,9 @@ def submit_vector_set_results(
     response = _response_with_prompt_metadata(response, vector_set)
     mode = normalize_acvp_json(vector_set["prompt"]).get("mode")
     try:
-        provider = _provider_for_prompt(vector_set["prompt"])
-        provider.validate_response(response, expected_mode=mode)
-        validation_result = _validate_with_nist_genval(vector_set, response)
+        module = _module_for_prompt(vector_set["prompt"], registry)
+        module.validate_response(response, expected_mode=mode)
+        validation_result = _validate_with_nist_genval(vector_set, response, registry)
     except AcvpSchemaError as exc:
         return acvp_error(400, exc.code, exc.message, exc.path)
     except GenValConfigurationError as exc:
@@ -1613,6 +1607,7 @@ def _response_with_prompt_metadata(response: Any, vector_set: Dict[str, Any]) ->
 def _validate_with_nist_genval(
     vector_set: Dict[str, Any],
     response: Any,
+    registry: AlgorithmModuleRegistry,
 ) -> Dict[str, Any]:
     settings = get_genval_settings()
     artifact_paths = dict(vector_set.get("artifactPaths") or {})
@@ -1650,14 +1645,24 @@ def _validate_with_nist_genval(
     )
     vector_set["artifactPaths"] = artifact_paths
 
-    validation_result = normalize_nist_validation(
+    validation_result = _normalize_validation_for_prompt(
         validation_payload,
-        prompt=vector_set["prompt"],
+        vector_set["prompt"],
+        registry,
     )
     validation_result["metadata"]["providerName"] = NIST_GENVAL_PROVIDER_NAME
     validation_result["metadata"]["executionBackend"] = EXECUTION_BACKEND
     validation_result["metadata"]["validationArtifact"] = str(validation_path)
     return validation_result
+
+
+def _normalize_validation_for_prompt(
+    validation: Dict[str, Any],
+    prompt: Dict[str, Any],
+    registry: AlgorithmModuleRegistry,
+) -> Dict[str, Any]:
+    module = _module_for_prompt(prompt, registry)
+    return normalize_module_validation(module, validation, prompt=prompt)
 
 
 def _get_session_label(session_id: str) -> Optional[str]:

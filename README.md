@@ -2,6 +2,19 @@
 
 NCCU ACVP Server exposes a strict-only ACVP v1 workflow for FIPS 204 / ML-DSA.
 
+## Algorithm-neutral Core
+
+The strict runtime is assembled from algorithm-neutral protocol services and
+an injected algorithm module registry. Each module owns its immutable
+descriptor, schema validation, capability negotiation, NIST registration
+mapping, and NIST validation normalization. The protocol layer dispatches by
+`AlgorithmIdentity` and does not import concrete algorithm packages.
+
+`GET /acvp/v1/algorithms` is generated entirely from registered descriptors.
+ML-DSA is currently the only production module, registered once during
+application startup with provider ID `nist-ml-dsa-fips204`. This architecture
+does not claim support for any additional algorithm or standard.
+
 ## Strict ACVP Policy
 
 - Every new `/acvp/v1` test session is a registration-container session.
@@ -109,3 +122,5 @@ Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
 Stage 2 removal details are recorded in
 [`docs/stages/stage2-remove-local-runtime.md`](docs/stages/stage2-remove-local-runtime.md).
+Stage 3 architecture details are recorded in
+[`docs/stages/stage3-algorithm-neutral-core.md`](docs/stages/stage3-algorithm-neutral-core.md).

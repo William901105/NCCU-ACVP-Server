@@ -1,38 +1,99 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
-from app.acvp_core.registry import AlgorithmProviderRegistry, DuplicateProviderError, ProviderNotFoundError, get_provider
-from app.acvp_mldsa.provider import MldsaProvider, ensure_mldsa_provider_registered, get_mldsa_provider
+from app.acvp_core.algorithm_descriptor import AlgorithmDescriptor
+from app.acvp_core.algorithm_identity import AlgorithmIdentity
+from app.acvp_core.bootstrap import build_algorithm_registry
+from app.acvp_core.registry import (
+    AlgorithmModuleRegistry,
+    DuplicateModuleError,
+    ModuleNotFoundError,
+)
+from app.algorithms.mldsa import MldsaAlgorithmModule
 
 
-def setup_module() -> None:
-    ensure_mldsa_provider_registered()
+def test_algorithm_identity_validates_hashes_and_formats() -> None:
+    identity = AlgorithmIdentity("ML-DSA", "keyGen", "FIPS204")
+
+    assert identity == AlgorithmIdentity("ML-DSA", "keyGen", "FIPS204")
+    assert len({identity, AlgorithmIdentity("ML-DSA", "keyGen", "FIPS204")}) == 1
+    assert str(identity) == "ML-DSA/keyGen/FIPS204"
+    for values in (("", "keyGen", "FIPS204"), ("ML-DSA", "", "FIPS204"), ("ML-DSA", "keyGen", "")):
+        with pytest.raises(ValueError):
+            AlgorithmIdentity(*values)
 
 
-def test_default_registry_has_mldsa_schema_provider_for_all_modes() -> None:
-    for mode in ("keyGen", "sigGen", "sigVer"):
-        assert get_provider("ML-DSA", mode, "FIPS204").supports("ML-DSA", mode, "FIPS204")
+def test_descriptor_is_immutable_and_serialization_is_detached() -> None:
+    descriptor = _descriptor("provider-one", "ALG", ("modeB", "modeA"))
+    first = descriptor.to_dict()
+    first["modes"].append("changed")
+    first["metadata"]["values"].append(3)
+
+    assert descriptor.to_dict()["modes"] == ["modeB", "modeA"]
+    assert descriptor.to_dict()["metadata"] == {"values": [1, 2]}
+    with pytest.raises(FrozenInstanceError):
+        descriptor.algorithm = "changed"  # type: ignore[misc]
 
 
-def test_unknown_algorithm_raises_clear_registry_error() -> None:
-    registry = AlgorithmProviderRegistry()
-    registry.register_provider(get_mldsa_provider())
+def test_registry_registers_gets_and_orders_modules_deterministically() -> None:
+    registry = AlgorithmModuleRegistry()
+    second = _StubModule(_descriptor("provider-z", "Z-ALG", ("mode",)))
+    first = _StubModule(_descriptor("provider-a", "A-ALG", ("mode",)))
+    registry.register_module(second)
+    registry.register_module(first)
 
-    with pytest.raises(ProviderNotFoundError):
-        registry.get_provider("unknown", "keyGen", "FIPS204")
+    identity = AlgorithmIdentity("A-ALG", "mode", "R1")
+    assert registry.get_module(identity) is first
+    assert registry.identities() == (
+        AlgorithmIdentity("A-ALG", "mode", "R1"),
+        AlgorithmIdentity("Z-ALG", "mode", "R1"),
+    )
+    assert [item["providerId"] for item in registry.list_descriptors()] == ["provider-a", "provider-z"]
 
 
-def test_duplicate_provider_registration_is_rejected() -> None:
-    registry = AlgorithmProviderRegistry()
-    registry.register_provider(MldsaProvider())
-    with pytest.raises(DuplicateProviderError):
-        registry.register_provider(MldsaProvider())
+def test_registry_rejects_duplicate_identity_and_provider_id() -> None:
+    registry = AlgorithmModuleRegistry()
+    registry.register_module(_StubModule(_descriptor("provider-one", "ALG", ("mode",))))
+
+    with pytest.raises(DuplicateModuleError) as provider_error:
+        registry.register_module(_StubModule(_descriptor("provider-one", "OTHER", ("mode",))))
+    assert provider_error.value.provider_id == "provider-one"
+
+    with pytest.raises(DuplicateModuleError) as identity_error:
+        registry.register_module(_StubModule(_descriptor("provider-two", "ALG", ("mode",))))
+    assert identity_error.value.identity == AlgorithmIdentity("ALG", "mode", "R1")
 
 
-def test_mldsa_provider_validates_and_negotiates_keygen_registration() -> None:
-    provider = get_mldsa_provider()
-    registration = provider.validate_registration(
+def test_unknown_identity_raises_module_not_found() -> None:
+    with pytest.raises(ModuleNotFoundError):
+        AlgorithmModuleRegistry().get_module(AlgorithmIdentity("UNKNOWN", "mode", "R1"))
+
+
+def test_production_registry_contains_mldsa_modes_and_descriptor() -> None:
+    registry = build_algorithm_registry()
+    descriptor = registry.list_descriptors()[0]
+
+    assert len(registry) == 1
+    assert descriptor["providerId"] == "nist-ml-dsa-fips204"
+    assert descriptor["algorithm"] == "ML-DSA"
+    assert descriptor["revision"] == "FIPS204"
+    assert descriptor["modes"] == ["keyGen", "sigGen", "sigVer"]
+    assert descriptor["parameterSets"] == ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]
+    assert descriptor["workflowPolicy"] == "strict"
+    assert descriptor["executionBackend"] == "nist-genval"
+    for mode in descriptor["modes"]:
+        assert isinstance(
+            registry.get_module(AlgorithmIdentity("ML-DSA", mode, "FIPS204")),
+            MldsaAlgorithmModule,
+        )
+
+
+def test_mldsa_module_validates_and_negotiates_keygen_registration() -> None:
+    module = MldsaAlgorithmModule()
+    registration = module.validate_registration(
         {
             "algorithm": "ML-DSA",
             "mode": "keyGen",
@@ -41,7 +102,34 @@ def test_mldsa_provider_validates_and_negotiates_keygen_registration() -> None:
             "parameterSets": ["ML-DSA-44"],
         }
     )
-    negotiated = provider.negotiate_capabilities(registration)
+    negotiated = module.negotiate_capabilities(registration)
 
     assert registration["algorithm"] == "ML-DSA"
     assert negotiated["negotiated"][0]["mode"] == "keyGen"
+    assert "local" not in str(negotiated).lower()
+
+
+def _descriptor(provider_id: str, algorithm: str, modes: tuple) -> AlgorithmDescriptor:
+    return AlgorithmDescriptor(
+        provider_id=provider_id,
+        algorithm=algorithm,
+        revision="R1",
+        display_name=algorithm,
+        enabled=True,
+        modes=modes,
+        parameter_sets=("P1",),
+        registration_schema_version="1",
+        response_schema_version="1",
+        execution_backend="nist-genval",
+        nist_references=("https://example.test/spec",),
+        capability_metadata={"metadata": {"values": [1, 2]}},
+    )
+
+
+class _StubModule:
+    def __init__(self, descriptor: AlgorithmDescriptor) -> None:
+        self.descriptor = descriptor
+        self.provider_id = descriptor.provider_id
+
+    def supports(self, identity: AlgorithmIdentity) -> bool:
+        return identity in self.descriptor.identities()

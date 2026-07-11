@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from .constants import ALGORITHM, REVISION
 from .validators import validate_mldsa_registration
@@ -38,22 +38,3 @@ def map_mldsa_registration_to_nist(
     if "external" in normalized["signatureInterfaces"]:
         mapped["preHash"] = list(normalized["preHash"])
     return mapped
-
-
-def map_mldsa_registration_container_to_nist(
-    container: Dict[str, Any],
-    *,
-    is_sample: bool = True,
-    starting_vs_id: int = 1,
-) -> List[Dict[str, Any]]:
-    registrations = container.get("algorithms")
-    if not isinstance(registrations, list) or not registrations:
-        raise ValueError("registration container must include a non-empty algorithms array")
-    return [
-        map_mldsa_registration_to_nist(
-            registration,
-            vs_id=starting_vs_id + index,
-            is_sample=is_sample,
-        )
-        for index, registration in enumerate(registrations)
-    ]

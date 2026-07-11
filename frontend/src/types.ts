@@ -10,30 +10,6 @@ export type JsonObject = Record<string, JsonValue>;
 
 export type AcvpEnvelope<T> = [{ acvVersion: string }, T];
 
-export interface ImportSummary {
-  importId: string;
-  label?: string | null;
-  vsId?: number | string | null;
-  algorithm?: string | null;
-  mode?: string | null;
-  revision?: string | null;
-  testGroupCount: number;
-  testCaseCount: number;
-}
-
-export interface SampleInfo {
-  name: string;
-  path: string;
-  hasPassResponse: boolean;
-  hasFailResponse: boolean;
-  vsId?: number | string | null;
-  algorithm?: string | null;
-  mode?: string | null;
-  revision?: string | null;
-  testGroupCount?: number;
-  testCaseCount?: number;
-}
-
 export interface AcvpTestCase {
   tcId: number | string;
   [key: string]: JsonValue;
@@ -54,75 +30,6 @@ export interface AcvpVectorSet {
   revision?: string;
   testGroups: AcvpTestGroup[];
   [key: string]: JsonValue | AcvpTestGroup[] | undefined;
-}
-
-export interface FailureDetail {
-  tgId: number | string;
-  tcId: number | string;
-  field: string;
-  reason: string;
-  expected: JsonValue | string | null;
-  provided: JsonValue | string | null;
-}
-
-export type CaseStatus = "passed" | "failed" | "missing" | "malformed";
-
-export interface CaseResult {
-  tgId: number | string;
-  tcId: number | string;
-  status: CaseStatus;
-  prompt?: JsonObject | null;
-  expected: JsonObject;
-  response?: JsonObject | null;
-  failures: FailureDetail[];
-  group: JsonObject;
-}
-
-export interface ValidationSummaryCounts {
-  total: number;
-  passed: number;
-  failed: number;
-  missing: number;
-  malformed: number;
-  extra?: number;
-}
-
-export interface ValidationResult {
-  metadata: {
-    vsId?: number | string | null;
-    algorithm?: string | null;
-    mode?: string | null;
-    revision?: string | null;
-  };
-  summary: ValidationSummaryCounts;
-  failures: FailureDetail[];
-  caseResults: CaseResult[];
-}
-
-export interface ImportDetail {
-  importId: string;
-  label?: string | null;
-  summary: ImportSummary;
-  prompt: AcvpVectorSet;
-  expectedResults: AcvpVectorSet;
-  response: AcvpVectorSet;
-  validationResult?: ValidationResult | null;
-}
-
-export interface Report {
-  importId: string;
-  generatedAt: string;
-  algorithm?: string | null;
-  mode?: string | null;
-  revision?: string | null;
-  vsId?: number | string | null;
-  totalTestCases: number;
-  passedCount: number;
-  failedCount: number;
-  missingCount: number;
-  malformedCount: number;
-  failureDetails: FailureDetail[];
-  markdown: string;
 }
 
 export type FipsVersionId = "FIPS203" | "FIPS204";
@@ -165,9 +72,6 @@ export interface AcvpSessionSummary {
   isSample?: boolean;
   provider?: string | null;
   providerName?: string | null;
-  expectedResultsDebugOnly?: boolean;
-  hasInternalProjection?: boolean;
-  nistSourceCommit?: string | null;
   [key: string]: unknown;
 }
 
@@ -175,7 +79,6 @@ export interface AcvpSessionDetail extends AcvpSessionSummary {
   vectorSets?: AcvpVectorSetSummary[];
   stateHistory?: JsonValue[];
   negotiatedCapabilities?: JsonValue;
-  vectorGeneration?: JsonValue;
 }
 
 export interface AcvpVectorSetSummary {
@@ -191,61 +94,10 @@ export interface AcvpVectorSetSummary {
   testCaseCount?: number;
   provider?: string | null;
   providerName?: string | null;
-  expectedResultsDebugOnly?: boolean;
-  hasInternalProjection?: boolean;
-  nistSourceCommit?: string | null;
   downloadedAt?: string | null;
   submittedAt?: string | null;
   validatedAt?: string | null;
   [key: string]: unknown;
-}
-
-export interface AcvpVectorSetDownload {
-  vectorSetId: string;
-  testSessionId: string;
-  status: string;
-  prompt: AcvpVectorSet;
-  stateHistory?: JsonValue[];
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
-  [key: string]: unknown;
-}
-
-export interface AcvpExpectedResults {
-  vectorSetId: string;
-  testSessionId: string;
-  expectedResults: AcvpVectorSet;
-  status: string;
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
-}
-
-export interface AcvpVectorSetResult {
-  vectorSetId: string;
-  testSessionId: string;
-  status: string;
-  validationResult: ValidationResult;
-  report: Report;
-  stateHistory?: JsonValue[];
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
-}
-
-export interface AcvpSessionResults {
-  testSessionId: string;
-  status: string;
-  summary: JsonObject;
-  vectorSetResults: AcvpVectorSetResult[];
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
 }
 
 export type AcvpVectorSetPayload = AcvpVectorSet;
@@ -279,12 +131,6 @@ export interface AcvpStrictSessionResultItem {
   [key: string]: JsonValue | undefined;
 }
 
-export interface AcvpStrictSessionResults {
-  passed: boolean;
-  results: AcvpStrictSessionResultItem[];
-  [key: string]: JsonValue | AcvpStrictSessionResultItem[];
-}
-
 export type NormalizedSourceShape = "strict-payload";
 
 export interface NormalizedVectorSetView {
@@ -311,8 +157,6 @@ export interface NormalizedVectorSetResultView {
   raw: unknown;
   sourceShape: NormalizedSourceShape;
   status?: string;
-  validationResult?: ValidationResult;
-  report?: Report;
   acvpResults?: AcvpStrictVectorSetResults;
 }
 
@@ -321,7 +165,4 @@ export interface NormalizedSessionResultsView {
   results: AcvpStrictSessionResultItem[];
   raw: unknown;
   sourceShape: NormalizedSourceShape;
-  status?: string;
-  summary?: JsonObject;
-  vectorSetResults?: AcvpVectorSetResult[];
 }

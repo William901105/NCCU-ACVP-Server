@@ -1,0 +1,849 @@
+{
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "NCCU ACVP Server strict ML-DSA ACVP workflow using NIST GenVal.",
+    "title": "NCCU ACVP Server | FIPS 204 / ML-DSA",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/acvp/v1/algorithms": {
+      "get": {
+        "operationId": "get_acvp_v1_algorithms_acvp_v1_algorithms_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Algorithms Acvp V1 Algorithms Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Acvp V1 Algorithms",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions": {
+      "get": {
+        "operationId": "list_acvp_v1_test_sessions_acvp_v1_testSessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response List Acvp V1 Test Sessions Acvp V1 Testsessions Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Acvp V1 Test Sessions",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "post": {
+        "operationId": "create_acvp_v1_test_session_acvp_v1_testSessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Create Acvp V1 Test Session Acvp V1 Testsessions Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}": {
+      "delete": {
+        "operationId": "delete_acvp_v1_test_session_acvp_v1_testSessions__sessionId__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Delete"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "get": {
+        "operationId": "get_acvp_v1_test_session_acvp_v1_testSessions__sessionId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/results": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_results_acvp_v1_testSessions__sessionId__results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Results Acvp V1 Testsessions  Sessionid  Results Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/submit": {
+      "post": {
+        "operationId": "submit_acvp_v1_test_session_acvp_v1_testSessions__sessionId__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Submit Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_sets_acvp_v1_testSessions__sessionId__vectorSets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Sets Acvp V1 Testsessions  Sessionid  Vectorsets Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Sets",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/generate": {
+      "post": {
+        "operationId": "generate_acvp_v1_test_session_vector_sets_acvp_v1_testSessions__sessionId__vectorSets_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Generate Acvp V1 Test Session Vector Sets Acvp V1 Testsessions  Sessionid  Vectorsets Generate Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Acvp V1 Test Session Vector Sets",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}": {
+      "delete": {
+        "operationId": "delete_acvp_v1_test_session_vector_set_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Acvp V1 Test Session Vector Set Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Delete"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Acvp V1 Test Session Vector Set",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_expected_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__expected_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Expected Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Expected Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set Expected",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "showExpected",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Showexpected",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "post": {
+        "operationId": "submit_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "put": {
+        "operationId": "update_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Update Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Put"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/version": {
+      "get": {
+        "operationId": "get_acvp_v1_version_acvp_v1_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Version Acvp V1 Version Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Acvp V1 Version",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@ from .service import (
     cancel_vector_set,
     create_test_session,
     delete_test_session,
-    generate_vector_sets_for_session,
+    request_nist_vector_sets_for_session,
     get_test_session,
     get_test_session_results,
     get_test_session_vector_sets,
@@ -109,7 +109,7 @@ def generate_acvp_v1_test_session_vector_sets(
     request = _parse_vector_set_generate_request(payload)
     if isinstance(request, JSONResponse):
         return _canonical_response(request)
-    return _canonical_response(generate_vector_sets_for_session(sessionId, request))
+    return _canonical_response(request_nist_vector_sets_for_session(sessionId, request))
 
 
 @router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}")

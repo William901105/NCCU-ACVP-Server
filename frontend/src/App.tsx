@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   API_BASE_URL,
   ApiError,
-  clearDemoData,
   createAcvpSession,
   expectedDeniedView,
   getAcvpExpectedResults,
@@ -193,18 +192,6 @@ export default function App() {
     setVectorSets(vectors);
   }
 
-  async function clearDemoRecords() {
-    if (!window.confirm("Delete local demo records and generated artifacts?")) {
-      return;
-    }
-    await runBusy(async () => {
-      const result = await clearDemoData();
-      resetWorkspace();
-      await refreshSessions();
-      setMessage(result.message);
-    });
-  }
-
   function resetWorkspace() {
     setActiveSession(null);
     setVectorSets([]);
@@ -245,7 +232,6 @@ export default function App() {
           <StatusChip label="Execution: NIST GenVal" tone="ready" />
           <button type="button" onClick={() => refreshSessions().catch(showError)} disabled={isBusy}>Refresh</button>
           <button type="button" className="secondary" onClick={resetWorkspace} disabled={isBusy}>Clear</button>
-          <button type="button" className="danger" onClick={clearDemoRecords} disabled={isBusy}>Clean</button>
         </div>
       </header>
 

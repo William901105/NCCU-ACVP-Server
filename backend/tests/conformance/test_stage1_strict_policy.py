@@ -8,8 +8,6 @@ from typing import Any, Dict
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-from app.acvp_core.registry import get_provider
-from app.acvp_protocol import service
 from app.acvp_protocol.routes import (
     _parse_session_create_request,
     _parse_vector_set_generate_request,
@@ -93,19 +91,7 @@ def test_request_body_rejects_removed_controls_with_explicit_codes() -> None:
     assert _body(generated)["error"]["code"] == "GENERATION_PROFILE_NOT_SUPPORTED"
 
 
-def test_new_session_and_vectors_are_strict_nist_only(monkeypatch: Any) -> None:
-    provider = get_provider("ML-DSA", "keyGen", "FIPS204")
-    monkeypatch.setattr(
-        provider,
-        "generate_vector_sets",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("local generator used")),
-    )
-    monkeypatch.setattr(
-        provider,
-        "generate_expected_results",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("local expected generator used")),
-    )
-
+def test_new_session_and_vectors_are_strict_nist_only() -> None:
     created = _body(
         create_acvp_v1_test_session(
             {

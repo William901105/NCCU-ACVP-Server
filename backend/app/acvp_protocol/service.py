@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -444,11 +445,9 @@ def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
             container_payload["metadata"] = payload.metadata
         registration_container = _validate_registration_container_with_providers(container_payload)
         negotiated_capabilities = _negotiate_capabilities_with_providers(registration_container)
-        generation_provider = _provider_for_registration_container(registration_container)
         campaign_seed = _resolve_campaign_seed(
             payload.campaignSeed,
             registration_container,
-            generation_provider,
         )
         tests_per_group = _resolve_tests_per_group(
             payload.testsPerGroup,
@@ -505,7 +504,7 @@ def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
     return _registration_session_response(session)
 
 
-def generate_vector_sets_for_session(
+def request_nist_vector_sets_for_session(
     session_id: str,
     payload: AcvpV1VectorSetGenerateRequest,
 ) -> Any:
@@ -542,11 +541,9 @@ def generate_vector_sets_for_session(
         )
 
     try:
-        generation_provider = _provider_for_registration_container(session["registration"])
         campaign_seed = _resolve_campaign_seed(
             payload.campaignSeed if payload.campaignSeed is not None else session.get("campaignSeed"),
             session["registration"],
-            generation_provider,
         )
         tests_per_group = _resolve_tests_per_group(
             payload.testsPerGroup if payload.testsPerGroup is not None else session.get("testsPerGroup"),
@@ -823,17 +820,10 @@ def _nist_genval_error_details() -> Dict[str, Any]:
 def _resolve_campaign_seed(
     provided_seed: Optional[str],
     registration_container: Dict[str, Any],
-    provider: AcvpAlgorithmProvider,
 ) -> str:
     if provided_seed is None:
-        fallback = getattr(provider, "fallback_campaign_seed", None)
-        if not callable(fallback):
-            raise AcvpSchemaError(
-                "invalid_value",
-                "Provider does not expose fallback campaign seed generation.",
-                "$.campaignSeed",
-            )
-        return str(fallback(registration_container))
+        canonical = json.dumps(registration_container, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest().upper()
     if not isinstance(provided_seed, str):
         raise AcvpSchemaError("invalid_type", "campaignSeed must be a hex string", "$.campaignSeed")
     if len(provided_seed) % 2 != 0 or _HEX_RE.fullmatch(provided_seed) is None:

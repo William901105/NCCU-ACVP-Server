@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Dict, List, Optional, Protocol, runtime_checkable
 
 
 class AcvpProviderError(Exception):
@@ -32,20 +32,7 @@ class AcvpAlgorithmProvider(Protocol):
     def negotiate_capabilities(self, registration: Dict[str, Any]) -> Dict[str, Any]:
         ...
 
-    def generate_vector_sets(
-        self,
-        negotiated_capabilities: Dict[str, Any],
-        *,
-        campaign_seed: str,
-        tests_per_group: int,
-        generation_profile: str,
-    ) -> List[Dict[str, Any]]:
-        ...
-
     def validate_prompt(self, prompt: Dict[str, Any]) -> Dict[str, Any]:
-        ...
-
-    def generate_expected_results(self, prompt: Dict[str, Any]) -> Dict[str, Any]:
         ...
 
     def validate_response(
@@ -53,14 +40,5 @@ class AcvpAlgorithmProvider(Protocol):
         response: Dict[str, Any],
         *,
         expected_mode: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        ...
-
-    def validate_results(
-        self,
-        *,
-        prompt: Dict[str, Any],
-        expected_results: Dict[str, Any],
-        response: Dict[str, Any],
     ) -> Dict[str, Any]:
         ...

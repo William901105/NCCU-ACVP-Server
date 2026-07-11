@@ -24,8 +24,13 @@ Legacy records created by earlier local workflows remain readable. Any attempt
 to generate, submit, or validate such a record returns
 `LEGACY_LOCAL_SESSION_NOT_SUPPORTED`; records are not converted.
 
-The legacy local oracle, validator, import and demo endpoints remain in the
-repository for Stage 2 removal, but are not part of the `/acvp/v1` runtime path.
+The local oracle, validator, expected-result generator, import pipeline, and
+demo endpoints have been removed. Production runtime code has no local
+generation or validation fallback.
+
+`IUT-tests/mldsa-native/` is an external implementation-under-test harness; it
+is not a server oracle. The repository sample and NIST fixtures are test inputs
+only and are not exposed by production endpoints.
 
 ## API Workflow
 
@@ -67,6 +72,10 @@ Runtime settings:
 If the runner is unavailable, generation or validation returns a NIST GenVal
 error; the server does not use a Python fallback.
 
+NIST's generated prompt, expected results, and internal projection are stored
+as artifacts. The internal projection is never returned by the public API;
+expected results are returned only for sample vector sets.
+
 ## Development
 
 ```bash
@@ -98,3 +107,5 @@ ML-KEM / FIPS 203 is not part of this project stage.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
+Stage 2 removal details are recorded in
+[`docs/stages/stage2-remove-local-runtime.md`](docs/stages/stage2-remove-local-runtime.md).

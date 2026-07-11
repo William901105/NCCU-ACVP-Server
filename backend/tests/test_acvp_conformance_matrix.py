@@ -1,96 +1,41 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
-DOC = Path(__file__).resolve().parents[1] / "docs" / "acvp-conformance-matrix.md"
-VECTOR_GENERATION_DOC = (
-    Path(__file__).resolve().parents[1] / "docs" / "acvp-v1-vector-generation.md"
-)
-PROTOCOL_HARDENING_DOC = (
-    Path(__file__).resolve().parents[1] / "docs" / "acvp-v1-protocol-hardening.md"
-)
+ROOT = Path(__file__).resolve().parents[2]
+README = ROOT / "README.md"
+GENVAL_DOC = ROOT / "docs" / "nist-genval-integration.md"
+STAGE1_DOC = ROOT / "docs" / "stages" / "stage1-strict-policy.md"
+STAGE2_DOC = ROOT / "docs" / "stages" / "stage2-remove-local-runtime.md"
+STAGE2_OPENAPI = ROOT / "docs" / "baseline" / "openapi-stage2-strict.json"
 
 
-def test_acvp_conformance_matrix_exists_and_references_nist_sources() -> None:
-    assert DOC.exists()
-    text = DOC.read_text(encoding="utf-8")
+def test_strict_runtime_docs_describe_nist_only_execution() -> None:
+    for document in (README, GENVAL_DOC, STAGE1_DOC, STAGE2_DOC):
+        assert document.exists()
 
-    assert "https://pages.nist.gov/ACVP/draft-fussell-acvp-spec.html" in text
-    assert "https://pages.nist.gov/ACVP/draft-celi-acvp-ml-dsa.html" in text
-    assert "https://pages.nist.gov/ACVP/" in text
-    assert "https://csrc.nist.gov/pubs/fips/204/final" in text
-
-
-def test_acvp_conformance_matrix_has_required_status_values() -> None:
-    text = DOC.read_text(encoding="utf-8")
-
-    for status in (
-        "SUPPORTED",
-        "SUPPORTED-LOCAL",
-        "PARTIAL",
-        "MISSING",
-        "LOCAL_DEMO_ONLY",
-        "NOT_IN_SCOPE_YET",
-        "NEEDS_SPEC_REVIEW",
-    ):
-        assert status in text
+    text = (README.read_text(encoding="utf-8") + GENVAL_DOC.read_text(encoding="utf-8"))
+    assert "NIST GenVal" in text
+    assert "does not use a Python fallback" in text
+    assert "internal projection" in text.lower()
 
 
-def test_acvp_conformance_matrix_declares_demo_and_skeleton_not_production() -> None:
-    text = DOC.read_text(encoding="utf-8")
+def test_stage2_doc_records_removed_runtime_and_legacy_storage_policy() -> None:
+    text = STAGE2_DOC.read_text(encoding="utf-8")
 
-    assert "`/api/demo/acvp/...` routes are a local demo lifecycle" in text
-    assert "not formal ACVP endpoints" in text
-    assert "`/acvp/v1/...` routes are skeleton endpoints" in text
-    assert "Phase 3-4 vector generation, Phase 3-5 lifecycle state, and Phase 4-1 SQLite persistence" in text
-    assert "deterministic/local-fips204-skeleton behavior" in text
-    assert "not a production-ready server" in text
+    assert "`/acvp/v1/*` plus `/api/health`" in text
+    assert "SQLite schema is not migrated" in text
+    assert "`imports` and `demo_sessions` tables remain" in text
+    assert "never use a fallback" in text
 
 
-def test_acvp_conformance_matrix_lists_required_future_phases() -> None:
-    text = DOC.read_text(encoding="utf-8")
+def test_stage2_openapi_snapshot_has_only_strict_routes() -> None:
+    document = json.loads(STAGE2_OPENAPI.read_text(encoding="utf-8"))
+    paths = set(document["paths"])
 
-    for phase in (
-        "Phase 3-2",
-        "Phase 3-3",
-        "Phase 3-4",
-        "Phase 3-5",
-        "Phase 4-1",
-        "Phase 4-2",
-        "Phase 4-3",
-    ):
-        assert phase in text
-
-
-def test_acvp_v1_vector_generation_doc_exists_and_documents_scope() -> None:
-    assert VECTOR_GENERATION_DOC.exists()
-    text = VECTOR_GENERATION_DOC.read_text(encoding="utf-8")
-
-    assert "Phase 3-4" in text
-    assert "campaignSeed" in text
-    assert "testsPerGroup" in text
-    assert "POST /acvp/v1/testSessions/{sessionId}/vectorSets/generate" in text
-    assert "not a production-ready ACVP server" in text
-    assert "SHAKE-128" in text
-
-
-def test_acvp_v1_protocol_hardening_doc_exists_and_documents_phase_4_3() -> None:
-    assert PROTOCOL_HARDENING_DOC.exists()
-    text = PROTOCOL_HARDENING_DOC.read_text(encoding="utf-8")
-
-    assert "Phase 4-3 Commit 1" in text
-    assert "Phase 4-3 Commit 2" in text
-    assert "Phase 4-3 Commit 3" in text
-    assert "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected" in text
-    assert "extensions.localFips204Skeleton" in text
-    assert "localCompatibilityAlias=true" in text
-    assert "results.disposition" in text
-    assert "showExpected" in text
-    assert "localPostReturnsResults=true" in text
-    assert "INVALID_QUERY_PARAMETER" in text
-    assert "X-Request-ID" in text
-    assert "totalCount" in text
-    assert "Phase 4-3D paging/query: implemented local" in (
-        Path(__file__).resolve().parents[1] / "docs" / "acvp-conformance-matrix.md"
-    ).read_text(encoding="utf-8")
+    assert "/api/health" in paths
+    assert all(path == "/api/health" or path.startswith("/acvp/v1/") for path in paths)
+    assert "/api/import" not in paths
+    assert "/api/demo/clear" not in paths

@@ -13,7 +13,8 @@ For each generated vector set the service:
 
 The server returns `NIST_GENVAL_NOT_READY`, `NIST_GENVAL_ARTIFACT_MISSING`, or
 `NIST_GENVAL_EXECUTION_ERROR` when that backend cannot complete. It does not
-fall back to the Python oracle.
+fall back to any local generator or validator.
 
-The pre-Stage 1 local implementation remains for later repository cleanup only;
-it is unreachable from `/acvp/v1`.
+`internalProjection` is a server-side artifact used only for NIST validation.
+It is not exposed by a public endpoint. `expectedResults` is also held
+server-side and can be fetched only for sample vector sets.

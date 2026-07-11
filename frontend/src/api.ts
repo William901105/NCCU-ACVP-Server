@@ -1,26 +1,19 @@
 import type {
   AcvpEnvelope,
   AcvpExpectedPayload,
-  AcvpExpectedResults,
   AcvpSessionDetail,
   AcvpSessionSummary,
   AcvpStrictSessionResultItem,
   AcvpStrictVectorSetResultTest,
   AcvpStrictVectorSetResults,
-  AcvpVectorSetDownload,
   AcvpVectorSetPayload,
   AcvpVectorSetSummary,
-  ImportDetail,
-  ImportSummary,
   JsonObject,
   JsonValue,
   NormalizedExpectedView,
   NormalizedSessionResultsView,
   NormalizedVectorSetResultView,
-  NormalizedVectorSetView,
-  Report,
-  SampleInfo,
-  ValidationResult
+  NormalizedVectorSetView
 } from "./types";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -105,51 +98,6 @@ export async function requestMaybeJson<T>(path: string, options?: RequestOptions
 
 export async function requestNoContentAware<T>(path: string, options?: RequestOptions): Promise<T | undefined> {
   return requestMaybeJson<T>(path, options);
-}
-
-export async function listSamples(): Promise<SampleInfo[]> {
-  const payload = await request<{ samples: SampleInfo[] }>("/api/sample-data");
-  return payload.samples;
-}
-
-export async function loadSample(sampleName: string, responseVariant: "pass" | "fail"): Promise<ImportSummary> {
-  return request<ImportSummary>("/api/load-sample", {
-    method: "POST",
-    body: JSON.stringify({ sampleName, responseVariant })
-  });
-}
-
-export async function importBundle(
-  prompt: JsonValue,
-  expectedResults: JsonValue,
-  response: JsonValue,
-  label?: string
-): Promise<ImportSummary> {
-  return request<ImportSummary>("/api/import", {
-    method: "POST",
-    body: JSON.stringify({ prompt, expectedResults, response, label })
-  });
-}
-
-export async function getImport(importId: string): Promise<ImportDetail> {
-  return request<ImportDetail>(`/api/import/${importId}`);
-}
-
-export async function validateImport(importId: string): Promise<ValidationResult> {
-  return request<ValidationResult>("/api/validate", {
-    method: "POST",
-    body: JSON.stringify({ importId })
-  });
-}
-
-export async function getReport(importId: string): Promise<Report> {
-  return request<Report>(`/api/report/${importId}`);
-}
-
-export async function clearDemoData(): Promise<{ deleted: boolean; deletedFiles: string[]; message: string }> {
-  return request<{ deleted: boolean; deletedFiles: string[]; message: string }>("/api/demo/clear?confirm=true", {
-    method: "DELETE"
-  });
 }
 
 export async function listAcvpSessions(options: AcvpClientOptions = {}, status?: string): Promise<AcvpSessionSummary[]> {
@@ -434,8 +382,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
-}
-
-function booleanValue(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
 }

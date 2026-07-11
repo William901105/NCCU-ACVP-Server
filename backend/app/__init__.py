@@ -1,2 +1,1 @@
-"""FIPS 204 / ML-DSA ACVP local validation demo backend."""
-
+"""NCCU ACVP Server backend for FIPS 204 / ML-DSA local validation."""

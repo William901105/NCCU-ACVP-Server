@@ -1,14 +1,14 @@
-# FIPS 204 / ML-DSA ACVP Local Client + Validator
+# NCCU ACVP Server
 
-This is a local ACVP client workflow and validator for FIPS 204 / ML-DSA.
+NCCU ACVP Server provides local ACVP workflows and validation for FIPS 204 / ML-DSA.
 
-This is not a full ACVP server.
+The current release is a local implementation, not a full production ACVP server.
 
 Production ACVP server behavior is intentionally out of scope for this MVP.
 
 ## Project Purpose
 
-This project supports a local ACVP-style flow:
+NCCU ACVP Server supports these local ACVP-style flows:
 
 - capability registration
 - test session and vector set creation
@@ -51,7 +51,7 @@ Python/native oracle path for development and sample workflows.
 ## Project Structure
 
 ```text
-ACVP-FIPS204/
+NCCU-ACVP-Server/
   backend/
     app/
       main.py
@@ -97,7 +97,7 @@ ACVP-FIPS204/
 ## Install Backend
 
 ```bash
-cd ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -106,7 +106,7 @@ pip install -r requirements.txt
 On Windows PowerShell:
 
 ```powershell
-cd ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -115,14 +115,14 @@ pip install -r requirements.txt
 ## Start Backend
 
 ```bash
-cd ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 uvicorn app.main:app --reload --port 8000
 ```
 
 The same command also works from the project root:
 
 ```bash
-cd ACVP-FIPS204
+cd NCCU-ACVP-Server
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -142,7 +142,7 @@ recorded in `third_party/nist-acvp-server/NIST_SOURCE.md`.
 Build and run the adapter with:
 
 ```bash
-cd ACVP-FIPS204
+cd NCCU-ACVP-Server
 ./scripts/nist/copy_nist_genval.sh
 ./scripts/nist/build_nist_genval.sh
 ./scripts/nist/start_orleans.sh
@@ -177,14 +177,14 @@ error details.
 ## Install Frontend
 
 ```bash
-cd ACVP-FIPS204/frontend
+cd NCCU-ACVP-Server/frontend
 npm install
 ```
 
 ## Start Frontend
 
 ```bash
-cd ACVP-FIPS204/frontend
+cd NCCU-ACVP-Server/frontend
 npm run dev
 ```
 
@@ -214,6 +214,10 @@ Each sample directory includes:
 `response.pass.json` matches `expectedResults.json`. `response.fail.json` intentionally changes the first relevant field in the first test case.
 
 ## ACVP Client Workflow
+
+Both the `strict` NIST GenVal path and the legacy `local` path are currently
+available. Later refactor stages will remove the legacy local path; this Stage
+0 baseline intentionally keeps both paths and their existing APIs.
 
 1. Start the backend.
 2. Start the frontend.
@@ -262,7 +266,7 @@ The IUT helpers live in `IUT-tests/mldsa-native/` and use the sibling
 `../mldsa-native` checkout as the implementation under test.
 
 ```bash
-cd ACVP-FIPS204/IUT-tests/mldsa-native
+cd NCCU-ACVP-Server/IUT-tests/mldsa-native
 python3 run_test.py --prompt prompt/prompt-keygen.json
 python3 run_keygen.py --prompt prompt/prompt-keygen.json
 python3 run_keygen_fail.py --prompt prompt/prompt-keygen.json

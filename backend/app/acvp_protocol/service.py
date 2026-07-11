@@ -113,7 +113,7 @@ def version() -> Dict[str, Any]:
         {
             "acvVersion": "1.0",
             "apiVersion": "v1",
-            "serverName": "FIPS204 ACVP Local Skeleton",
+            "serverName": "NCCU ACVP Server",
             "implementationPhase": "5-3-provider-interface",
             "nistReferences": NIST_REFERENCES,
         }

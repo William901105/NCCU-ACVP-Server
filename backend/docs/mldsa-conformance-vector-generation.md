@@ -114,7 +114,7 @@ backend/tests/conformance/test_mldsa_generation_profiles.py
 Run only these tests:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_phase51_test.sqlite3 pytest -q tests/conformance
 ```
@@ -122,7 +122,7 @@ ACVP_DB_PATH=/tmp/acvp_phase51_test.sqlite3 pytest -q tests/conformance
 Run the full backend suite:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_phase51_test.sqlite3 pytest -q
 ```

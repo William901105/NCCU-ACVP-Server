@@ -99,7 +99,7 @@ submitted response data.
 ## Manual Check
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_phase41_manual.sqlite3 \
   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

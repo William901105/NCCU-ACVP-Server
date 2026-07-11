@@ -90,9 +90,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="FIPS 204 / ML-DSA ACVP JSON Viewer + Local Validator",
+    title="NCCU ACVP Server | FIPS 204 / ML-DSA",
     version="0.1.0",
-    description="Local JSON comparison demo for ML-DSA ACVP prompt, expectedResults, and response files.",
+    description="NCCU ACVP Server local workflow for ML-DSA ACVP prompt, expectedResults, and response files.",
     lifespan=lifespan,
 )
 

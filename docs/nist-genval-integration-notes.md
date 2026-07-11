@@ -2,7 +2,7 @@
 
 ## Baseline Static Analysis
 
-`ACVP-FIPS204` is currently a local ACVP-style client workflow and validator, not a full ACVP server. FastAPI exposes local demo/import/oracle routes from `backend/app/main.py`, while canonical `/acvp/v1` routes are mounted from `backend/app/acvp_protocol/routes.py`. New `/acvp/v1` logic should remain in `acvp_protocol`, not move back into `main.py`.
+`NCCU-ACVP-Server` is currently a local ACVP-style client workflow and validator, not a full ACVP server. FastAPI exposes local demo/import/oracle routes from `backend/app/main.py`, while canonical `/acvp/v1` routes are mounted from `backend/app/acvp_protocol/routes.py`. New `/acvp/v1` logic should remain in `acvp_protocol`, not move back into `main.py`.
 
 The existing `/acvp/v1` generation flow is:
 

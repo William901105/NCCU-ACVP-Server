@@ -71,7 +71,7 @@ All `/acvp/v1` responses continue to include:
 Run the backend tests with a temporary DB:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 .venv/bin/pytest -q
 ```
 
@@ -80,7 +80,7 @@ ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 .venv/bin/pytest -q
 Start the backend with an explicit DB:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 ACVP_DB_PATH=/tmp/acvp_phase41_manual.sqlite3 \
   .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```

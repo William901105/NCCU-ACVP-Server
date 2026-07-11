@@ -1,17 +1,18 @@
-# ACVP FIPS 204 Frontend
+# NCCU ACVP Server Frontend
 
-React/Vite client for the local ACVP FIPS 204 server demo. The UI supports both the local skeleton workflow and the stricter ACVP-like workflow profile.
+React/Vite client for NCCU ACVP Server. The UI supports both the legacy local
+workflow and the stricter ACVP-like workflow profile.
 
 This is not a production ACVP client. Auth/JWT/mTLS, `/large` submission, async validation, and production ACVP resource workflows are not implemented.
 
 ## Start The Backend
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend/native/mldsa_oracle
+cd NCCU-ACVP-Server/backend/native/mldsa_oracle
 make clean
 make MLDSA_NATIVE_DIR=/root/ACVP204/mldsa-native
 
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_ui_demo.sqlite3 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
@@ -19,7 +20,7 @@ ACVP_DB_PATH=/tmp/acvp_ui_demo.sqlite3 uvicorn app.main:app --host 127.0.0.1 --p
 ## Start The Frontend
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/frontend
+cd NCCU-ACVP-Server/frontend
 npm install
 npm run dev
 ```

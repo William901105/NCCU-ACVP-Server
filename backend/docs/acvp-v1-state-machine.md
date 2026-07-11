@@ -223,7 +223,7 @@ Expired sessions return `409 TEST_SESSION_EXPIRED`. Expired vector sets return `
 Build native oracle:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend/native/mldsa_oracle
+cd NCCU-ACVP-Server/backend/native/mldsa_oracle
 make clean
 make MLDSA_NATIVE_DIR=/root/ACVP204/mldsa-native
 ```
@@ -231,7 +231,7 @@ make MLDSA_NATIVE_DIR=/root/ACVP204/mldsa-native
 Run tests:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 pytest -q
 ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 pytest -q tests/test_acvp_v1_state_machine.py

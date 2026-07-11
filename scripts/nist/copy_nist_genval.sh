@@ -60,14 +60,14 @@ copied_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 cat > "${TARGET_ROOT}/NIST_SOURCE.md" <<EOF
 # NIST ACVP-Server Source
 
-- copied from local path: ${SOURCE_ROOT}
+- source repository: NIST ACVP-Server
 - source git commit: ${source_commit}
 - copied timestamp: ${copied_at}
 - integration note: NIST code is copied into this repository; it is not a git submodule.
 
-This directory vendors the NIST ACVP-Server Gen/Val code needed by the local
-FIPS204 demo integration. Re-run scripts/nist/copy_nist_genval.sh to refresh it
-from the local ACVP-Server checkout.
+This directory vendors the NIST ACVP-Server Gen/Val code needed by the NCCU
+ACVP Server integration. Re-run scripts/nist/copy_nist_genval.sh to refresh it
+from a local NIST ACVP-Server checkout.
 EOF
 
 echo "Copied NIST Gen/Val code to ${TARGET_ROOT}"

@@ -146,7 +146,7 @@ Use `workflowProfile=local` for those local skeleton flows.
 ## Tests
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 
 ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acvp_strict_workflow_profile.py
@@ -156,4 +156,3 @@ ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acv
 ACVP_DB_PATH=/tmp/acvp_phase54_conformance.sqlite3 pytest -q tests/conformance
 ACVP_DB_PATH=/tmp/acvp_phase54_full.sqlite3 pytest -q
 ```
-

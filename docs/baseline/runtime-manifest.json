@@ -1,0 +1,21 @@
+{
+  "projectName": "NCCU-ACVP-Server",
+  "baselineBranch": "feat/nist-genval-adapter",
+  "baselineCommit": "a16afec310b6acb604193e18dab4ee57e9bc06d2",
+  "baselineRefactorBranch": "strict",
+  "baselineTag": "pre-strict-refactor",
+  "pythonVersion": "3.8.10",
+  "nodeVersion": "v24.18.0",
+  "npmVersion": "11.16.0",
+  "dotnetSdkVersion": "8.0.422",
+  "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "genValRunner": ".nist-bin/genval-runner/NIST.CVP.ACVTS.Generation.GenValApp.dll",
+  "orleansServer": ".nist-bin/orleans-server/NIST.CVP.ACVTS.Orleans.ServerHost.dll",
+  "fixtureRoot": "tests/fixtures/nist/mldsa",
+  "fixtureModes": [
+    "keyGen",
+    "sigGen",
+    "sigVer"
+  ],
+  "captureScript": "scripts/baseline/capture_strict_baseline.sh"
+}

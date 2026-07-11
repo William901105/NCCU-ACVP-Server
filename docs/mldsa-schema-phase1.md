@@ -85,7 +85,7 @@ The existing sample import, validate, and report workflow remains in place.
 ## Testing
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 pip install -r requirements.txt
 pytest

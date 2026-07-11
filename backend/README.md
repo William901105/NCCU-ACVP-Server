@@ -1,6 +1,6 @@
-# Backend
+# NCCU ACVP Server Backend
 
-FastAPI backend for the FIPS 204 / ML-DSA ACVP JSON viewer and local validator.
+FastAPI backend for NCCU ACVP Server and its FIPS 204 / ML-DSA local validator.
 
 ```bash
 python -m venv .venv

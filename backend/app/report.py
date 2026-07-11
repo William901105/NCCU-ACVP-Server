@@ -32,7 +32,7 @@ def export_report_json(report: dict[str, Any]) -> dict[str, Any]:
 
 def export_report_markdown(report: dict[str, Any]) -> str:
     lines = [
-        "# FIPS 204 / ML-DSA ACVP Local Validation Report",
+        "# NCCU ACVP Server | FIPS 204 / ML-DSA Validation Report",
         "",
         f"- importId: `{report['importId']}`",
         f"- generatedAt: `{report['generatedAt']}`",

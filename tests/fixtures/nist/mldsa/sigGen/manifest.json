@@ -1,0 +1,27 @@
+{
+  "baselineApplicationCommit": "a16afec310b6acb604193e18dab4ee57e9bc06d2",
+  "captureCommand": "scripts/baseline/capture_strict_baseline.sh",
+  "captureTimestamp": "2026-07-11T07:04:58Z",
+  "files": {
+    "Check.log": "7f9e1e9a00de17290e5210f2dc125efb6d6757d8ee95648fbe8f559933257cca",
+    "Generate.log": "15eebc3d2238222c1c52c282dcfbf7b32b7b5338ef1a5a763e354cd491fe58be",
+    "check.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "check.stdout.txt": "ba6f782d3f72dcdc280c3aba71ecb2bf74dcecd4a09b5ade4e29a9e3d8be99d9",
+    "expectedResults.json": "32da9f35c1bd8d983ff965c262ef40d3817f770f777cc1d3d95201c825b62c17",
+    "generate.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "generate.stdout.txt": "ec8570dc60fdee53c439fba64a820e56c7dd35b2be2570775130bf974f39cc81",
+    "internalProjection.json": "9537911c7d5a2790a50f008dbe3d68e1491f0cb6a17f1fe9fde06faded58e423",
+    "prompt.json": "675674ccc02323317e59b8d5da7dc61d94fed7e3375d07e2f69c0a752b9d3b48",
+    "registration.json": "77d55da953f3d4b0f4ce08363c40957cb70a8105a03edcf5437eb3e76f33dcc6",
+    "response.fail.json": "9b58456f9efab61a5718b29c2bb195d8b0c922d03d2703b05a4f297efd06a5ce",
+    "response.pass.json": "0db1afc2b116c51b6b28c884d9643db137d7e6c822224817bc372578b0b16272",
+    "validate-fail.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "validate-fail.stdout.txt": "2a33ffb86bbecb98de856347098d96a2d3a9905c355b9acb4a627205980a33b5",
+    "validate-pass.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "validate-pass.stdout.txt": "2a33ffb86bbecb98de856347098d96a2d3a9905c355b9acb4a627205980a33b5",
+    "validation.fail.json": "a1699819b34edbd64a677af719190f78043d6ddb90b2a742e564c9b8eb9809f4",
+    "validation.pass.json": "68d9c349b122dfe2fad75e1379a62874c0eeda0ebb924d7d47c36303eb8bd816"
+  },
+  "mode": "sigGen",
+  "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0"
+}

@@ -76,7 +76,7 @@ database deployment, security hardening, and interoperability validation.
 Build the native oracle:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend/native/mldsa_oracle
+cd NCCU-ACVP-Server/backend/native/mldsa_oracle
 make clean
 make MLDSA_NATIVE_DIR=/root/ACVP204/mldsa-native
 ```
@@ -84,7 +84,7 @@ make MLDSA_NATIVE_DIR=/root/ACVP204/mldsa-native
 Run the provider-focused tests:
 
 ```bash
-cd /root/ACVP204/ACVP-FIPS204/backend
+cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 ACVP_DB_PATH=/tmp/acvp_phase53_test.sqlite3 pytest -q tests/test_acvp_algorithm_provider.py
 ACVP_DB_PATH=/tmp/acvp_phase53_test.sqlite3 pytest -q tests/conformance/test_acvp_algorithm_provider_dispatch.py
@@ -95,4 +95,3 @@ Run existing conformance tests:
 ```bash
 ACVP_DB_PATH=/tmp/acvp_phase53_conformance.sqlite3 pytest -q tests/conformance
 ```
-

@@ -392,7 +392,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">ACVP client UI</p>
+          <p className="eyebrow">NCCU ACVP Server</p>
           <h1>Strict workflow-aware ACVP client</h1>
           <p className="topbar-detail">Backend {API_BASE_URL}</p>
         </div>

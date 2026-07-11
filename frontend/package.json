@@ -1,5 +1,5 @@
 {
-  "name": "ACVP-FIPS204-frontend",
+  "name": "nccu-acvp-server-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",

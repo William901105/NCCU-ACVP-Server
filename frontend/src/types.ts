@@ -8,9 +8,6 @@ export type JsonValue =
 
 export type JsonObject = Record<string, JsonValue>;
 
-export type AcvpWorkflowProfile = "local" | "strict";
-export type AcvpGenerationProfile = "local-debug" | "nist-conformance";
-
 export type AcvpEnvelope<T> = [{ acvVersion: string }, T];
 
 export interface ImportSummary {
@@ -163,18 +160,14 @@ export interface AcvpSessionSummary {
   revision?: string | null;
   testGroupCount?: number;
   testCaseCount?: number;
-  generationProfile?: AcvpGenerationProfile;
-  workflowProfile?: AcvpWorkflowProfile;
+  workflowPolicy?: "strict";
+  executionBackend?: "nist-genval";
   isSample?: boolean;
   provider?: string | null;
   providerName?: string | null;
   expectedResultsDebugOnly?: boolean;
   hasInternalProjection?: boolean;
   nistSourceCommit?: string | null;
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
   [key: string]: unknown;
 }
 
@@ -204,10 +197,6 @@ export interface AcvpVectorSetSummary {
   downloadedAt?: string | null;
   submittedAt?: string | null;
   validatedAt?: string | null;
-  productionReady: boolean;
-  profile: string;
-  demoOnly: boolean;
-  notProductionAcvp: boolean;
   [key: string]: unknown;
 }
 
@@ -296,7 +285,7 @@ export interface AcvpStrictSessionResults {
   [key: string]: JsonValue | AcvpStrictSessionResultItem[];
 }
 
-export type NormalizedSourceShape = "local-wrapper" | "strict-payload";
+export type NormalizedSourceShape = "strict-payload";
 
 export interface NormalizedVectorSetView {
   vectorSetId?: string;

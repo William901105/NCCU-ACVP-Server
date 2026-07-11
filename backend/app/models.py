@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 JsonObject = Union[Dict[str, Any], List[Any]]
@@ -63,27 +63,31 @@ class DemoAcvpResponseSubmitRequest(BaseModel):
 
 
 class AcvpV1TestSessionCreateRequest(BaseModel):
-    prompt: Optional[JsonObject] = None
-    algorithms: Optional[List[JsonObject]] = None
+    """Strict ACVP registration request accepted by production routes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    algorithms: List[JsonObject]
     label: Optional[str] = None
-    autoGenerateExpectedResults: bool = True
     autoGenerateVectorSets: bool = True
     campaignSeed: Optional[str] = None
     testsPerGroup: Optional[int] = None
-    generationProfile: Optional[str] = None
     isSample: Optional[bool] = None
     expiresInSeconds: Optional[int] = Field(default=None, ge=0)
     metadata: Optional[JsonObject] = None
 
 
 class AcvpV1VectorSetGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     campaignSeed: Optional[str] = None
     testsPerGroup: Optional[int] = None
-    generationProfile: Optional[str] = None
     expiresInSeconds: Optional[int] = Field(default=None, ge=0)
 
 
 class AcvpV1VectorSetResultsSubmitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     response: JsonObject
 
 

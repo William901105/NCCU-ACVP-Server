@@ -92,12 +92,6 @@ def build_paged_body(
         "data": items,
         key: items,
         "pagination": pagination,
-        "extensions": {
-            "localFips204Skeleton": {
-                "pagination": pagination,
-                "localPaginationAlias": True,
-            }
-        },
     }
     return body
 

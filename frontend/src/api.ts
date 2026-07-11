@@ -2,7 +2,6 @@ import type {
   AcvpEnvelope,
   AcvpExpectedPayload,
   AcvpExpectedResults,
-  AcvpGenerationProfile,
   AcvpSessionDetail,
   AcvpSessionSummary,
   AcvpStrictSessionResultItem,
@@ -10,9 +9,7 @@ import type {
   AcvpStrictVectorSetResults,
   AcvpVectorSetDownload,
   AcvpVectorSetPayload,
-  AcvpVectorSetResult,
   AcvpVectorSetSummary,
-  AcvpWorkflowProfile,
   ImportDetail,
   ImportSummary,
   JsonObject,
@@ -33,8 +30,6 @@ interface RequestOptions extends RequestInit {
 }
 
 export interface AcvpClientOptions {
-  workflowProfile?: AcvpWorkflowProfile;
-  generationProfile?: AcvpGenerationProfile;
   isSample?: boolean;
 }
 
@@ -159,10 +154,7 @@ export async function clearDemoData(): Promise<{ deleted: boolean; deletedFiles:
 
 export async function listAcvpSessions(options: AcvpClientOptions = {}, status?: string): Promise<AcvpSessionSummary[]> {
   const payload = await request<{ testSessions: AcvpSessionSummary[] }>(
-    withQuery("/acvp/v1/testSessions", {
-      workflowProfile: options.workflowProfile,
-      status
-    })
+    withQuery("/acvp/v1/testSessions", { status })
   );
   return payload.testSessions;
 }
@@ -170,9 +162,7 @@ export async function listAcvpSessions(options: AcvpClientOptions = {}, status?:
 export async function createAcvpSession(payload: JsonValue, options: AcvpClientOptions = {}): Promise<AcvpSessionDetail> {
   const body = mergeSessionOptions(payload, options);
   return request<AcvpSessionDetail>(
-    withQuery("/acvp/v1/testSessions", {
-      workflowProfile: options.workflowProfile
-    }),
+    "/acvp/v1/testSessions",
     {
       method: "POST",
       body: JSON.stringify(body)
@@ -181,11 +171,7 @@ export async function createAcvpSession(payload: JsonValue, options: AcvpClientO
 }
 
 export async function getAcvpSession(sessionId: string, options: AcvpClientOptions = {}): Promise<AcvpSessionDetail> {
-  return request<AcvpSessionDetail>(
-    withQuery(`/acvp/v1/testSessions/${encodeURIComponent(sessionId)}`, {
-      workflowProfile: options.workflowProfile
-    })
-  );
+  return request<AcvpSessionDetail>(`/acvp/v1/testSessions/${encodeURIComponent(sessionId)}`);
 }
 
 export async function getAcvpSessionVectorSets(
@@ -193,9 +179,7 @@ export async function getAcvpSessionVectorSets(
   options: AcvpClientOptions = {}
 ): Promise<AcvpVectorSetSummary[]> {
   const payload = await request<{ vectorSets: AcvpVectorSetSummary[] }>(
-    withQuery(`/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets`, {
-      workflowProfile: options.workflowProfile
-    })
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets`
   );
   return payload.vectorSets;
 }
@@ -206,12 +190,7 @@ export async function getAcvpVectorSetPrompt(
   options: AcvpClientOptions = {}
 ): Promise<NormalizedVectorSetView> {
   const payload = await requestJson<unknown>(
-    withQuery(
-      `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}`,
-      {
-        workflowProfile: options.workflowProfile
-      }
-    )
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}`
   );
   return normalizeVectorSetPrompt(payload, sessionId, vectorSetId);
 }
@@ -222,12 +201,7 @@ export async function getAcvpExpectedResults(
   options: AcvpClientOptions = {}
 ): Promise<NormalizedExpectedView> {
   const payload = await requestJson<unknown>(
-    withQuery(
-      `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/expected`,
-      {
-        workflowProfile: options.workflowProfile
-      }
-    )
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/expected`
   );
   return normalizeExpectedResults(payload);
 }
@@ -240,12 +214,7 @@ export async function submitAcvpVectorSetResults(
 ): Promise<NormalizedVectorSetResultView | undefined> {
   const body = isAcvpEnvelope(response) ? response : { response };
   const payload = await requestNoContentAware<unknown>(
-    withQuery(
-      `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`,
-      {
-        workflowProfile: options.workflowProfile
-      }
-    ),
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`,
     {
       method: "POST",
       body: JSON.stringify(body)
@@ -265,12 +234,7 @@ export async function getAcvpVectorSetResults(
   options: AcvpClientOptions = {}
 ): Promise<NormalizedVectorSetResultView> {
   const payload = await requestJson<unknown>(
-    withQuery(
-      `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`,
-      {
-        workflowProfile: options.workflowProfile
-      }
-    )
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`
   );
   return normalizeVectorSetResults(payload);
 }
@@ -280,9 +244,7 @@ export async function getAcvpSessionResults(
   options: AcvpClientOptions = {}
 ): Promise<NormalizedSessionResultsView> {
   const payload = await requestJson<unknown>(
-    withQuery(`/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/results`, {
-      workflowProfile: options.workflowProfile
-    })
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/results`
   );
   return normalizeSessionResults(payload);
 }
@@ -365,9 +327,6 @@ function mergeSessionOptions(payload: JsonValue, options: AcvpClientOptions): Js
     return payload;
   }
   const body: Record<string, JsonValue> = { ...(payload as JsonObject) };
-  if (options.generationProfile !== undefined) {
-    body.generationProfile = options.generationProfile;
-  }
   if (options.isSample !== undefined) {
     body.isSample = options.isSample;
   }
@@ -376,16 +335,6 @@ function mergeSessionOptions(payload: JsonValue, options: AcvpClientOptions): Js
 
 function normalizeVectorSetPrompt(payload: unknown, sessionId: string, vectorSetId: string): NormalizedVectorSetView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (isRecord(body) && isVectorSetPayload(body.prompt)) {
-    return {
-      vectorSetId: stringValue(body.vectorSetId) ?? vectorSetId,
-      sessionId: stringValue(body.testSessionId) ?? sessionId,
-      status: stringValue(body.status),
-      prompt: body.prompt,
-      raw: payload,
-      sourceShape: "local-wrapper"
-    };
-  }
   if (isVectorSetPayload(body)) {
     return {
       vectorSetId,
@@ -401,15 +350,6 @@ function normalizeVectorSetPrompt(payload: unknown, sessionId: string, vectorSet
 
 function normalizeExpectedResults(payload: unknown): NormalizedExpectedView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (isRecord(body) && isVectorSetPayload(body.expectedResults)) {
-    return {
-      available: true,
-      denied: false,
-      expectedResults: body.expectedResults,
-      raw: payload,
-      sourceShape: "local-wrapper"
-    };
-  }
   if (isVectorSetPayload(body)) {
     return {
       available: true,
@@ -436,24 +376,8 @@ function normalizeVectorSetResults(payload: unknown): NormalizedVectorSetResultV
       tests: strictResults.results.tests,
       raw: payload,
       acvpResults: strictResults,
-      sourceShape: isRecord(body) && ("validationResult" in body || "report" in body) ? "local-wrapper" : "strict-payload",
-      status: isRecord(body) ? stringValue(body.status) : undefined,
-      validationResult: isRecord(body) && isValidationResult(body.validationResult) ? body.validationResult : undefined,
-      report: isRecord(body) && isReport(body.report) ? body.report : undefined
-    };
-  }
-
-  if (isRecord(body) && isValidationResult(body.validationResult)) {
-    const summary = body.validationResult.summary;
-    const disposition = summary.failed === 0 && summary.missing === 0 && summary.malformed === 0 ? "passed" : "fail";
-    return {
-      disposition,
-      tests: [],
-      raw: payload,
-      sourceShape: "local-wrapper",
-      status: stringValue(body.status),
-      validationResult: body.validationResult,
-      report: isReport(body.report) ? body.report : undefined
+      sourceShape: "strict-payload",
+      status: isRecord(body) ? stringValue(body.status) : undefined
     };
   }
 
@@ -468,18 +392,6 @@ function normalizeSessionResults(payload: unknown): NormalizedSessionResultsView
       results: body.results,
       raw: payload,
       sourceShape: "strict-payload"
-    };
-  }
-
-  if (isRecord(body)) {
-    return {
-      passed: booleanValue(body.summary && isRecord(body.summary) ? body.summary.passed : undefined),
-      results: localVectorSetResultsToSessionItems(body.vectorSetResults),
-      raw: payload,
-      sourceShape: "local-wrapper",
-      status: stringValue(body.status),
-      summary: isJsonObject(body.summary) ? body.summary : undefined,
-      vectorSetResults: Array.isArray(body.vectorSetResults) ? (body.vectorSetResults as AcvpVectorSetResult[]) : undefined
     };
   }
 
@@ -499,29 +411,6 @@ function extractStrictVectorSetResults(payload: unknown): AcvpStrictVectorSetRes
   return undefined;
 }
 
-function localVectorSetResultsToSessionItems(value: unknown): AcvpStrictSessionResultItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .filter(isRecord)
-    .map((item) => ({
-      vectorSetUrl: stringValue(item.vectorSetId) ?? "",
-      status: stringValue(item.status) ?? "unknown",
-      disposition: statusToDisposition(stringValue(item.status))
-    }));
-}
-
-function statusToDisposition(status: string | undefined): string {
-  if (status === "validated") {
-    return "passed";
-  }
-  if (status === "failed") {
-    return "fail";
-  }
-  return status ?? "unreceived";
-}
-
 function isVectorSetPayload(value: unknown): value is AcvpVectorSetPayload {
   return isRecord(value) && Array.isArray(value.testGroups);
 }
@@ -537,36 +426,6 @@ function isStrictVectorSetResults(value: unknown): value is AcvpStrictVectorSetR
 
 function isStrictSessionResults(value: unknown): value is { passed: boolean; results: AcvpStrictSessionResultItem[] } {
   return isRecord(value) && typeof value.passed === "boolean" && Array.isArray(value.results);
-}
-
-function isValidationResult(value: unknown): value is ValidationResult {
-  return isRecord(value) && isRecord(value.summary) && typeof value.summary.total === "number";
-}
-
-function isReport(value: unknown): value is Report {
-  return isRecord(value) && typeof value.markdown === "string";
-}
-
-function isJsonObject(value: unknown): value is JsonObject {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return Object.values(value).every(isJsonValue);
-}
-
-function isJsonValue(value: unknown): value is JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return true;
-  }
-  if (Array.isArray(value)) {
-    return value.every(isJsonValue);
-  }
-  return isJsonObject(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

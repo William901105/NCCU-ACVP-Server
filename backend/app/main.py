@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NCCU ACVP Server | FIPS 204 / ML-DSA",
     version="0.1.0",
-    description="NCCU ACVP Server local workflow for ML-DSA ACVP prompt, expectedResults, and response files.",
+    description="NCCU ACVP Server strict ML-DSA ACVP workflow using NIST GenVal.",
     lifespan=lifespan,
 )
 
@@ -121,6 +121,27 @@ LEGACY_ORACLE_DESCRIPTION = (
 async def acvp_request_id_middleware(request: Request, call_next):
     token = set_request_id(request.headers.get("X-Request-ID"))
     try:
+        if request.url.path.startswith("/acvp/v1"):
+            if "workflowProfile" in request.query_params:
+                return acvp_error_response(
+                    status_code=400,
+                    code="WORKFLOW_PROFILE_NOT_SUPPORTED",
+                    message=(
+                        "workflowProfile is not supported. NCCU ACVP Server uses strict workflow only."
+                    ),
+                    path="$.workflowProfile",
+                    request=request,
+                    enveloped=True,
+                )
+            if "generationProfile" in request.query_params:
+                return acvp_error_response(
+                    status_code=400,
+                    code="GENERATION_PROFILE_NOT_SUPPORTED",
+                    message="generationProfile is not supported. NCCU ACVP Server uses NIST GenVal only.",
+                    path="$.generationProfile",
+                    request=request,
+                    enveloped=True,
+                )
         response = await call_next(request)
         response.headers["X-Request-ID"] = get_or_create_request_id(request)
         return response

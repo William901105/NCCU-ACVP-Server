@@ -1,0 +1,2515 @@
+{
+  "components": {
+    "schemas": {
+      "DemoAcvpResponseSubmitRequest": {
+        "properties": {
+          "response": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Response"
+          },
+          "validateImmediately": {
+            "default": true,
+            "title": "Validateimmediately",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "response"
+        ],
+        "title": "DemoAcvpResponseSubmitRequest",
+        "type": "object"
+      },
+      "DemoAcvpSessionCreateRequest": {
+        "properties": {
+          "autoGenerateExpectedResults": {
+            "default": true,
+            "title": "Autogenerateexpectedresults",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "DemoAcvpSessionCreateRequest",
+        "type": "object"
+      },
+      "GeneratedKeygenImportRequest": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Response"
+          }
+        },
+        "required": [
+          "prompt",
+          "response"
+        ],
+        "title": "GeneratedKeygenImportRequest",
+        "type": "object"
+      },
+      "GeneratedMldsaImportRequest": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Response"
+          }
+        },
+        "required": [
+          "prompt",
+          "response"
+        ],
+        "title": "GeneratedMldsaImportRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportRequest": {
+        "properties": {
+          "expectedResults": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Expectedresults"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Response"
+          }
+        },
+        "required": [
+          "prompt",
+          "expectedResults",
+          "response"
+        ],
+        "title": "ImportRequest",
+        "type": "object"
+      },
+      "ImportSummary": {
+        "properties": {
+          "algorithm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm"
+          },
+          "importId": {
+            "title": "Importid",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "testCaseCount": {
+            "default": 0,
+            "title": "Testcasecount",
+            "type": "integer"
+          },
+          "testGroupCount": {
+            "default": 0,
+            "title": "Testgroupcount",
+            "type": "integer"
+          },
+          "vsId": {
+            "title": "Vsid"
+          }
+        },
+        "required": [
+          "importId"
+        ],
+        "title": "ImportSummary",
+        "type": "object"
+      },
+      "LoadSampleRequest": {
+        "properties": {
+          "responseVariant": {
+            "default": "pass",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "title": "Responsevariant",
+            "type": "string"
+          },
+          "sampleName": {
+            "title": "Samplename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sampleName"
+        ],
+        "title": "LoadSampleRequest",
+        "type": "object"
+      },
+      "MldsaExpectedResultsRequest": {
+        "properties": {
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "MldsaExpectedResultsRequest",
+        "type": "object"
+      },
+      "MldsaExpectedResultsResponse": {
+        "properties": {
+          "algorithm": {
+            "const": "ML-DSA",
+            "default": "ML-DSA",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "expectedResults": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Expectedresults"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "revision": {
+            "const": "FIPS204",
+            "default": "FIPS204",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "expectedResults"
+        ],
+        "title": "MldsaExpectedResultsResponse",
+        "type": "object"
+      },
+      "MldsaKeygenExpectedResultsRequest": {
+        "properties": {
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "MldsaKeygenExpectedResultsRequest",
+        "type": "object"
+      },
+      "MldsaKeygenExpectedResultsResponse": {
+        "properties": {
+          "algorithm": {
+            "const": "ML-DSA",
+            "default": "ML-DSA",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "expectedResults": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "Expectedresults"
+          },
+          "mode": {
+            "const": "keyGen",
+            "default": "keyGen",
+            "title": "Mode",
+            "type": "string"
+          },
+          "revision": {
+            "const": "FIPS204",
+            "default": "FIPS204",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedResults"
+        ],
+        "title": "MldsaKeygenExpectedResultsResponse",
+        "type": "object"
+      },
+      "MldsaKeygenRequest": {
+        "properties": {
+          "parameterSet": {
+            "title": "Parameterset",
+            "type": "string"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parameterSet",
+          "seed"
+        ],
+        "title": "MldsaKeygenRequest",
+        "type": "object"
+      },
+      "MldsaKeygenResponse": {
+        "properties": {
+          "algorithm": {
+            "const": "ML-DSA",
+            "default": "ML-DSA",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "mode": {
+            "const": "keyGen",
+            "default": "keyGen",
+            "title": "Mode",
+            "type": "string"
+          },
+          "parameterSet": {
+            "title": "Parameterset",
+            "type": "string"
+          },
+          "pk": {
+            "title": "Pk",
+            "type": "string"
+          },
+          "revision": {
+            "const": "FIPS204",
+            "default": "FIPS204",
+            "title": "Revision",
+            "type": "string"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "string"
+          },
+          "sk": {
+            "title": "Sk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parameterSet",
+          "seed",
+          "pk",
+          "sk"
+        ],
+        "title": "MldsaKeygenResponse",
+        "type": "object"
+      },
+      "MldsaSigGenResponse": {
+        "properties": {
+          "algorithm": {
+            "const": "ML-DSA",
+            "default": "ML-DSA",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "deterministic": {
+            "title": "Deterministic",
+            "type": "boolean"
+          },
+          "externalMu": {
+            "title": "Externalmu",
+            "type": "boolean"
+          },
+          "hashAlg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hashalg"
+          },
+          "mode": {
+            "const": "sigGen",
+            "default": "sigGen",
+            "title": "Mode",
+            "type": "string"
+          },
+          "parameterSet": {
+            "title": "Parameterset",
+            "type": "string"
+          },
+          "preHash": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pure",
+                  "preHash"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prehash"
+          },
+          "revision": {
+            "const": "FIPS204",
+            "default": "FIPS204",
+            "title": "Revision",
+            "type": "string"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          },
+          "signatureInterface": {
+            "default": "internal",
+            "enum": [
+              "internal",
+              "external"
+            ],
+            "title": "Signatureinterface",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parameterSet",
+          "externalMu",
+          "deterministic",
+          "signature"
+        ],
+        "title": "MldsaSigGenResponse",
+        "type": "object"
+      },
+      "MldsaSigVerResponse": {
+        "properties": {
+          "algorithm": {
+            "const": "ML-DSA",
+            "default": "ML-DSA",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "externalMu": {
+            "title": "Externalmu",
+            "type": "boolean"
+          },
+          "hashAlg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hashalg"
+          },
+          "mode": {
+            "const": "sigVer",
+            "default": "sigVer",
+            "title": "Mode",
+            "type": "string"
+          },
+          "parameterSet": {
+            "title": "Parameterset",
+            "type": "string"
+          },
+          "preHash": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pure",
+                  "preHash"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prehash"
+          },
+          "revision": {
+            "const": "FIPS204",
+            "default": "FIPS204",
+            "title": "Revision",
+            "type": "string"
+          },
+          "signatureInterface": {
+            "default": "internal",
+            "enum": [
+              "internal",
+              "external"
+            ],
+            "title": "Signatureinterface",
+            "type": "string"
+          },
+          "testPassed": {
+            "title": "Testpassed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "parameterSet",
+          "externalMu",
+          "testPassed"
+        ],
+        "title": "MldsaSigVerResponse",
+        "type": "object"
+      },
+      "ValidateRequest": {
+        "properties": {
+          "importId": {
+            "title": "Importid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "importId"
+        ],
+        "title": "ValidateRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "NCCU ACVP Server strict ML-DSA ACVP workflow using NIST GenVal.",
+    "title": "NCCU ACVP Server | FIPS 204 / ML-DSA",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/acvp/v1/algorithms": {
+      "get": {
+        "operationId": "get_acvp_v1_algorithms_acvp_v1_algorithms_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Algorithms Acvp V1 Algorithms Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Acvp V1 Algorithms",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions": {
+      "get": {
+        "operationId": "list_acvp_v1_test_sessions_acvp_v1_testSessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response List Acvp V1 Test Sessions Acvp V1 Testsessions Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Acvp V1 Test Sessions",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "post": {
+        "operationId": "create_acvp_v1_test_session_acvp_v1_testSessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Create Acvp V1 Test Session Acvp V1 Testsessions Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}": {
+      "delete": {
+        "operationId": "delete_acvp_v1_test_session_acvp_v1_testSessions__sessionId__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Delete"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "get": {
+        "operationId": "get_acvp_v1_test_session_acvp_v1_testSessions__sessionId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/results": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_results_acvp_v1_testSessions__sessionId__results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Results Acvp V1 Testsessions  Sessionid  Results Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/submit": {
+      "post": {
+        "operationId": "submit_acvp_v1_test_session_acvp_v1_testSessions__sessionId__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Acvp V1 Test Session Acvp V1 Testsessions  Sessionid  Submit Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Acvp V1 Test Session",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_sets_acvp_v1_testSessions__sessionId__vectorSets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Sets Acvp V1 Testsessions  Sessionid  Vectorsets Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Sets",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/generate": {
+      "post": {
+        "operationId": "generate_acvp_v1_test_session_vector_sets_acvp_v1_testSessions__sessionId__vectorSets_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Generate Acvp V1 Test Session Vector Sets Acvp V1 Testsessions  Sessionid  Vectorsets Generate Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Acvp V1 Test Session Vector Sets",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}": {
+      "delete": {
+        "operationId": "delete_acvp_v1_test_session_vector_set_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Acvp V1 Test Session Vector Set Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Delete"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Acvp V1 Test Session Vector Set",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_expected_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__expected_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Expected Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Expected Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set Expected",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results": {
+      "get": {
+        "operationId": "get_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "showExpected",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Showexpected",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "post": {
+        "operationId": "submit_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      },
+      "put": {
+        "operationId": "update_acvp_v1_test_session_vector_set_results_acvp_v1_testSessions__sessionId__vectorSets__vectorSetId__results_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "title": "Sessionid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vectorSetId",
+            "required": true,
+            "schema": {
+              "title": "Vectorsetid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Update Acvp V1 Test Session Vector Set Results Acvp V1 Testsessions  Sessionid  Vectorsets  Vectorsetid  Results Put"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Acvp V1 Test Session Vector Set Results",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/acvp/v1/version": {
+      "get": {
+        "operationId": "get_acvp_v1_version_acvp_v1_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Acvp V1 Version Acvp V1 Version Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Acvp V1 Version",
+        "tags": [
+          "ACVP v1"
+        ]
+      }
+    },
+    "/api/demo/acvp/test-sessions": {
+      "get": {
+        "operationId": "list_demo_acvp_sessions_api_demo_acvp_test_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response List Demo Acvp Sessions Api Demo Acvp Test Sessions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Demo Acvp Sessions"
+      },
+      "post": {
+        "operationId": "create_demo_acvp_session_api_demo_acvp_test_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoAcvpSessionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Create Demo Acvp Session Api Demo Acvp Test Sessions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Demo Acvp Session"
+      }
+    },
+    "/api/demo/acvp/test-sessions/{session_id}": {
+      "delete": {
+        "operationId": "delete_demo_acvp_session_api_demo_acvp_test_sessions__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Demo Acvp Session Api Demo Acvp Test Sessions  Session Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Demo Acvp Session"
+      },
+      "get": {
+        "operationId": "get_demo_acvp_session_api_demo_acvp_test_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Demo Acvp Session Api Demo Acvp Test Sessions  Session Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Demo Acvp Session"
+      }
+    },
+    "/api/demo/acvp/test-sessions/{session_id}/report": {
+      "get": {
+        "operationId": "get_demo_acvp_session_report_api_demo_acvp_test_sessions__session_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Demo Acvp Session Report Api Demo Acvp Test Sessions  Session Id  Report Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Demo Acvp Session Report"
+      }
+    },
+    "/api/demo/acvp/test-sessions/{session_id}/responses": {
+      "post": {
+        "operationId": "submit_demo_acvp_session_response_api_demo_acvp_test_sessions__session_id__responses_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoAcvpResponseSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Demo Acvp Session Response Api Demo Acvp Test Sessions  Session Id  Responses Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Demo Acvp Session Response"
+      }
+    },
+    "/api/demo/acvp/test-sessions/{session_id}/validation": {
+      "get": {
+        "operationId": "get_demo_acvp_session_validation_api_demo_acvp_test_sessions__session_id__validation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Demo Acvp Session Validation Api Demo Acvp Test Sessions  Session Id  Validation Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Demo Acvp Session Validation"
+      }
+    },
+    "/api/demo/acvp/test-sessions/{session_id}/vector-set": {
+      "get": {
+        "operationId": "get_demo_acvp_session_vector_set_api_demo_acvp_test_sessions__session_id__vector_set_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Demo Acvp Session Vector Set Api Demo Acvp Test Sessions  Session Id  Vector Set Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Demo Acvp Session Vector Set"
+      }
+    },
+    "/api/demo/clear": {
+      "delete": {
+        "operationId": "clear_demo_data_api_demo_clear_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Clear Demo Data Api Demo Clear Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Demo Data"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/import": {
+      "post": {
+        "operationId": "import_bundle_api_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Bundle"
+      }
+    },
+    "/api/import/generated": {
+      "post": {
+        "operationId": "import_generated_mldsa_bundle_api_import_generated_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratedMldsaImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Generated Mldsa Bundle"
+      }
+    },
+    "/api/import/generated-and-validate": {
+      "post": {
+        "operationId": "import_generated_mldsa_bundle_and_validate_api_import_generated_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratedMldsaImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Import Generated Mldsa Bundle And Validate Api Import Generated And Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Generated Mldsa Bundle And Validate"
+      }
+    },
+    "/api/import/generated-keygen": {
+      "post": {
+        "operationId": "import_generated_keygen_bundle_api_import_generated_keygen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratedKeygenImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Generated Keygen Bundle"
+      }
+    },
+    "/api/import/{import_id}": {
+      "get": {
+        "operationId": "get_import_api_import__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Import Api Import  Import Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Import"
+      }
+    },
+    "/api/load-sample": {
+      "post": {
+        "operationId": "load_sample_import_api_load_sample_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadSampleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Sample Import"
+      }
+    },
+    "/api/oracle/mldsa/expected-results": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict generation and validation use the NIST GenVal adapter, not this endpoint.",
+        "operationId": "mldsa_expected_results_api_oracle_mldsa_expected_results_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MldsaExpectedResultsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MldsaExpectedResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy/debug ML-DSA expectedResults oracle"
+      }
+    },
+    "/api/oracle/mldsa/keygen": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict generation and validation use the NIST GenVal adapter, not this endpoint.",
+        "operationId": "mldsa_keygen_api_oracle_mldsa_keygen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MldsaKeygenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MldsaKeygenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy/debug ML-DSA keyGen oracle"
+      }
+    },
+    "/api/oracle/mldsa/keygen/expected-results": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict generation and validation use the NIST GenVal adapter, not this endpoint.",
+        "operationId": "mldsa_keygen_expected_results_api_oracle_mldsa_keygen_expected_results_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MldsaKeygenExpectedResultsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MldsaKeygenExpectedResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy/debug ML-DSA keyGen expectedResults oracle"
+      }
+    },
+    "/api/oracle/mldsa/siggen": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict generation and validation use the NIST GenVal adapter, not this endpoint.",
+        "operationId": "mldsa_siggen_api_oracle_mldsa_siggen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MldsaSigGenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy/debug ML-DSA sigGen oracle"
+      }
+    },
+    "/api/oracle/mldsa/sigver": {
+      "post": {
+        "deprecated": true,
+        "description": "Legacy/debug-only local ML-DSA oracle endpoint. Formal /acvp/v1 strict generation and validation use the NIST GenVal adapter, not this endpoint.",
+        "operationId": "mldsa_sigver_api_oracle_mldsa_sigver_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MldsaSigVerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy/debug ML-DSA sigVer oracle"
+      }
+    },
+    "/api/report/{import_id}": {
+      "get": {
+        "operationId": "get_report_api_report__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Report Api Report  Import Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report"
+      }
+    },
+    "/api/sample-data": {
+      "get": {
+        "operationId": "sample_data_api_sample_data_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Sample Data Api Sample Data Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sample Data"
+      }
+    },
+    "/api/schema/mldsa/registration": {
+      "post": {
+        "operationId": "validate_mldsa_registration_schema_api_schema_mldsa_registration_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Validate Mldsa Registration Schema Api Schema Mldsa Registration Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Mldsa Registration Schema"
+      }
+    },
+    "/api/schema/mldsa/response": {
+      "post": {
+        "operationId": "validate_mldsa_response_schema_api_schema_mldsa_response_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Validate Mldsa Response Schema Api Schema Mldsa Response Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Mldsa Response Schema"
+      }
+    },
+    "/api/schema/mldsa/vector-set": {
+      "post": {
+        "operationId": "validate_mldsa_vector_set_schema_api_schema_mldsa_vector_set_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Validate Mldsa Vector Set Schema Api Schema Mldsa Vector Set Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Mldsa Vector Set Schema"
+      }
+    },
+    "/api/validate": {
+      "post": {
+        "operationId": "validate_import_api_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Validate Import Api Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Import"
+      }
+    }
+  }
+}

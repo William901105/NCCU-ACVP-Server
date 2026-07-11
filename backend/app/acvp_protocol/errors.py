@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from .envelope import acvp_local_metadata, envelope_response
+from .envelope import envelope_response, server_metadata
 from .request_context import get_or_create_request_id
 
 
@@ -47,7 +47,7 @@ def acvp_error_body(
         error["details"] = details
     return {
         "error": error,
-        **acvp_local_metadata(),
+        **server_metadata(),
     }
 
 
@@ -71,7 +71,7 @@ def acvp_error_response(
         request=request,
     )
     response_body: Any = (
-        envelope_response(body, include_local_metadata=True)
+        envelope_response(body)
         if enveloped
         else body
     )

@@ -11,8 +11,6 @@ from fastapi.responses import JSONResponse
 
 from ..acvp_core.algorithm_provider import (
     AcvpAlgorithmProvider,
-    AcvpProviderExecutionError,
-    AcvpProviderInputError,
 )
 from ..acvp_core.registry import ProviderNotFoundError, get_provider, list_algorithms
 from ..acvp_mldsa.errors import AcvpSchemaError
@@ -29,7 +27,6 @@ from ..genval import (
 )
 from ..genval.artifacts import vector_set_artifact_dir
 from ..models import AcvpV1TestSessionCreateRequest, AcvpV1VectorSetGenerateRequest
-from ..report import build_report
 from ..storage.sqlite_store import (
     ACVP_SKELETON_SESSION_STORE,
     ACVP_SKELETON_VECTOR_SET_STORE,
@@ -56,22 +53,15 @@ from .state_machine import (
     transition_vector_set,
     vector_set_is_expired,
 )
-from .workflow_profile import (
-    LOCAL_WORKFLOW_PROFILE,
-    STRICT_WORKFLOW_PROFILE,
-    is_strict_workflow,
-)
+from .envelope import EXECUTION_BACKEND, WORKFLOW_POLICY
 
 ensure_mldsa_provider_registered()
 
-SKELETON_PROFILE = "local-fips204-skeleton"
 NIST_GENVAL_PROVIDER_ID = "nist-genval"
 NIST_GENVAL_PROVIDER_NAME = "NIST ACVP-Server GenValAppRunner"
-SKELETON_METADATA: Dict[str, Any] = {
-    "productionReady": False,
-    "profile": SKELETON_PROFILE,
-    "demoOnly": True,
-    "notProductionAcvp": True,
+SERVER_METADATA: Dict[str, Any] = {
+    "workflowPolicy": WORKFLOW_POLICY,
+    "executionBackend": EXECUTION_BACKEND,
 }
 
 NIST_REFERENCES = [
@@ -82,16 +72,15 @@ NIST_REFERENCES = [
 
 _HEX_RE = re.compile(r"^[0-9A-Fa-f]+$")
 VECTOR_GENERATION_AVAILABLE_ACTION = (
-    "Server-side vector generation from negotiated capabilities is available in "
-    "Phase 3-5; enable autoGenerateVectorSets or call /vectorSets/generate."
+    "NIST GenVal vector generation is available from the registered capabilities."
 )
 
 
-def with_skeleton_metadata(body: Dict[str, Any]) -> Dict[str, Any]:
-    return {**body, **SKELETON_METADATA}
+def with_server_metadata(body: Dict[str, Any]) -> Dict[str, Any]:
+    return {**body, **SERVER_METADATA}
 
 
-def acvp_skeleton_error(
+def acvp_error(
     status_code: int,
     code: str,
     message: str,
@@ -109,19 +98,20 @@ def acvp_skeleton_error(
 
 
 def version() -> Dict[str, Any]:
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             "acvVersion": "1.0",
             "apiVersion": "v1",
             "serverName": "NCCU ACVP Server",
-            "implementationPhase": "5-3-provider-interface",
+            "workflowPolicy": WORKFLOW_POLICY,
+            "executionBackend": EXECUTION_BACKEND,
             "nistReferences": NIST_REFERENCES,
         }
     )
 
 
 def algorithms() -> Dict[str, Any]:
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             "algorithms": [
                 {
@@ -152,16 +142,8 @@ def algorithms() -> Dict[str, Any]:
                             "SHAKE-256",
                         ],
                     },
-                    "localOracleLimitations": [
-                        "Phase 5-3 routes /acvp/v1 registration, negotiation, vector generation, expectedResults, and response validation through the algorithm provider registry. Only ML-DSA/FIPS204 is registered.",
-                        "Phase 5-2 supports SHAKE-128 and SHAKE-256 preHash generation with fixed digest lengths aligned to the native oracle mapping.",
-                        "Phase 4-1 supports SQLite-backed local-fips204-skeleton persistence; production vector generation is not implemented.",
-                        "Phase 4-3 Commit 1 adds ACVP array envelopes and canonical nested vectorSet routes while remaining a local skeleton.",
-                        "Phase 4-3 Commit 2 adds a local ACVP results disposition adapter and showExpected support.",
-                        "Phase 4-3 Commit 3 adds local paging/query hardening and normalized ACVP error envelopes.",
-                        "Production auth/JWT/mTLS is not implemented.",
-                        "Production database deployment is not implemented.",
-                    ],
+                    "workflowPolicy": WORKFLOW_POLICY,
+                    "executionBackend": EXECUTION_BACKEND,
                     "nistReferences": NIST_REFERENCES,
                 }
             ]
@@ -280,61 +262,6 @@ def _negotiate_capabilities_with_providers(container: Dict[str, Any]) -> Dict[st
         "warnings": warnings,
         "nextAction": VECTOR_GENERATION_AVAILABLE_ACTION,
     }
-
-
-def _generate_vector_sets_with_providers(
-    negotiated_capabilities: Dict[str, Any],
-    *,
-    campaign_seed: str,
-    tests_per_group: int,
-    generation_profile: str,
-) -> List[Dict[str, Any]]:
-    buckets: Dict[tuple[str, str, str], Dict[str, Any]] = {}
-    order: List[tuple[str, str, str]] = []
-
-    for index, entry in enumerate(negotiated_capabilities.get("negotiated", [])):
-        entry_path = _child_path("$.negotiatedCapabilities.negotiated", index)
-        entry_obj = _require_json_object(entry, entry_path)
-        algorithm = entry_obj.get("algorithm", negotiated_capabilities.get("algorithm"))
-        revision = entry_obj.get("revision", negotiated_capabilities.get("revision"))
-        mode = entry_obj.get("mode")
-        algorithm_text = _require_json_string(algorithm, _child_path(entry_path, "algorithm"))
-        mode_text = _require_json_string(mode, _child_path(entry_path, "mode"))
-        revision_text = _require_json_string(revision, _child_path(entry_path, "revision"))
-        provider = _provider_for_identity(
-            algorithm_text,
-            mode_text,
-            revision_text,
-            entry_path,
-        )
-        key = (algorithm_text, revision_text, provider.__class__.__name__)
-        if key not in buckets:
-            buckets[key] = {
-                "provider": provider,
-                "algorithm": algorithm_text,
-                "revision": revision_text,
-                "entries": [],
-            }
-            order.append(key)
-        buckets[key]["entries"].append(entry_obj)
-
-    prompts: List[Dict[str, Any]] = []
-    for key in order:
-        bucket = buckets[key]
-        provider = bucket["provider"]
-        provider_capabilities = dict(negotiated_capabilities)
-        provider_capabilities["algorithm"] = bucket["algorithm"]
-        provider_capabilities["revision"] = bucket["revision"]
-        provider_capabilities["negotiated"] = bucket["entries"]
-        prompts.extend(
-            provider.generate_vector_sets(
-                provider_capabilities,
-                campaign_seed=campaign_seed,
-                tests_per_group=tests_per_group,
-                generation_profile=generation_profile,
-            )
-        )
-    return prompts
 
 
 def _provider_for_prompt(prompt: Any) -> AcvpAlgorithmProvider:
@@ -502,122 +429,13 @@ def list_test_sessions(
         query={"status": status},
     )
     body["query"] = {"status": status} if status is not None else {}
-    return with_skeleton_metadata(
+    return with_server_metadata(
         body
     )
 
 
-def create_test_session(
-    payload: AcvpV1TestSessionCreateRequest,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
-    if payload.prompt is not None and payload.algorithms is not None:
-        return acvp_skeleton_error(
-            400,
-            "INVALID_REQUEST",
-            "prompt and algorithms cannot both be present in one test session request.",
-            "$",
-        )
-    if payload.algorithms is not None:
-        return _create_registration_session(payload, workflow_profile=workflow_profile)
-    if payload.prompt is None:
-        return acvp_skeleton_error(
-            400,
-            "INVALID_REQUEST",
-            "Request must include either prompt or algorithms.",
-            "$",
-        )
-
-    is_sample = _resolve_is_sample(payload.isSample, workflow_profile)
-    prompt = _payload_with_is_sample(payload.prompt, is_sample)
-    try:
-        provider = _provider_for_prompt(prompt)
-        prompt_vs = provider.validate_prompt(prompt)
-        expected_results = None
-        if payload.autoGenerateExpectedResults:
-            expected_results = provider.generate_expected_results(prompt)
-            provider.validate_response(expected_results, expected_mode=prompt_vs["mode"])
-    except AcvpSchemaError as exc:
-        return acvp_skeleton_error(400, exc.code, exc.message, exc.path)
-    except AcvpProviderInputError as exc:
-        return acvp_skeleton_error(400, "ORACLE_INPUT_ERROR", str(exc), "$")
-    except AcvpProviderExecutionError as exc:
-        return acvp_skeleton_error(500, "ORACLE_EXECUTION_ERROR", str(exc), "$")
-
-    now = _timestamp()
-    session_id = str(uuid4())
-    vector_set_id = str(uuid4())
-    vector_set_url = _nested_vector_set_path(session_id, vector_set_id)
-    expires_at = _expires_at_from_seconds(payload.expiresInSeconds)
-
-    session = {
-        "testSessionId": session_id,
-        "createdAt": now,
-        "updatedAt": now,
-        "status": TestSessionStatus.CREATED.value,
-        "label": payload.label,
-        "expiresAt": expires_at,
-        "vectorSetIds": [vector_set_id],
-        "vectorSetUrls": [vector_set_url],
-        "workflowProfile": workflow_profile,
-        "isSample": is_sample,
-        **SKELETON_METADATA,
-    }
-    vector_set = {
-        "vectorSetId": vector_set_id,
-        "testSessionId": session_id,
-        "createdAt": now,
-        "updatedAt": now,
-        "status": VectorSetStatus.CREATED.value,
-        "expiresAt": expires_at,
-        "prompt": prompt,
-        "expectedResults": expected_results,
-        "response": None,
-        "validationResult": None,
-        "report": None,
-        "mode": prompt_vs["mode"],
-        "vsId": prompt_vs["vsId"],
-        "isSample": is_sample,
-        **SKELETON_METADATA,
-    }
-    _record_created(session, TestSessionStatus.CREATED.value, "Prompt-based test session created.")
-    _record_created(vector_set, VectorSetStatus.CREATED.value, "Prompt-based vector set created.")
-    if expected_results is not None:
-        transition_vector_set(
-            vector_set,
-            VectorSetStatus.READY.value,
-            reason="Expected results generated for prompt-based vector set.",
-        )
-        transition_session(
-            session,
-            TestSessionStatus.VECTOR_READY.value,
-            reason="Prompt-based vector set is ready for download.",
-        )
-    save_acvp_session(session)
-    save_acvp_vector_set(vector_set)
-
-    return with_skeleton_metadata(
-        {
-            "testSessionId": session_id,
-            "status": session["status"],
-            "label": payload.label,
-            "vectorSetUrls": [vector_set_url],
-            "vectorSetIds": [vector_set_id],
-            "isSample": is_sample,
-            "createdAt": now,
-            "updatedAt": session["updatedAt"],
-            "expiresAt": expires_at,
-            "stateHistory": list(session["stateHistory"]),
-        }
-    )
-
-
-def _create_registration_session(
-    payload: AcvpV1TestSessionCreateRequest,
-    *,
-    workflow_profile: str,
-) -> Any:
+def create_test_session(payload: AcvpV1TestSessionCreateRequest) -> Any:
+    """Create a strict registration session; prompt sessions are intentionally absent."""
     try:
         container_payload: Dict[str, Any] = {"algorithms": payload.algorithms}
         if payload.label is not None:
@@ -627,16 +445,6 @@ def _create_registration_session(
         registration_container = _validate_registration_container_with_providers(container_payload)
         negotiated_capabilities = _negotiate_capabilities_with_providers(registration_container)
         generation_provider = _provider_for_registration_container(registration_container)
-        generation_profile = _resolve_generation_profile(
-            payload.generationProfile,
-            generation_provider,
-        )
-        generation_profile = _strict_generation_profile_if_needed(
-            generation_profile,
-            generation_provider,
-            workflow_profile=workflow_profile,
-            explicit_profile=payload.generationProfile is not None,
-        )
         campaign_seed = _resolve_campaign_seed(
             payload.campaignSeed,
             registration_container,
@@ -644,16 +452,14 @@ def _create_registration_session(
         )
         tests_per_group = _resolve_tests_per_group(
             payload.testsPerGroup,
-            generation_profile,
-            generation_provider,
         )
     except AcvpSchemaError as exc:
-        return acvp_skeleton_error(400, exc.code, exc.message, exc.path)
+        return acvp_error(400, exc.code, exc.message, exc.path)
 
     now = _timestamp()
     session_id = str(uuid4())
     expires_at = _expires_at_from_seconds(payload.expiresInSeconds)
-    is_sample = _resolve_is_sample(payload.isSample, workflow_profile)
+    is_sample = _resolve_is_sample(payload.isSample)
     session = {
         "testSessionId": session_id,
         "createdAt": now,
@@ -667,19 +473,17 @@ def _create_registration_session(
         "unsupported": negotiated_capabilities["unsupported"],
         "campaignSeed": campaign_seed,
         "testsPerGroup": tests_per_group,
-        "generationProfile": generation_profile,
-        "workflowProfile": workflow_profile,
         "isSample": is_sample,
         "vectorSetIds": [],
         "vectorSetUrls": [],
         "nextAction": VECTOR_GENERATION_AVAILABLE_ACTION,
-        **SKELETON_METADATA,
+        **SERVER_METADATA,
     }
     _record_created(session, TestSessionStatus.CREATED.value, "Registration test session created.")
     transition_session(
         session,
         TestSessionStatus.CAPABILITIES_ACCEPTED.value,
-        reason="Capabilities accepted by provider-based local skeleton negotiation.",
+        reason="Capabilities accepted for strict NIST GenVal execution.",
     )
     save_acvp_session(session)
 
@@ -688,7 +492,6 @@ def _create_registration_session(
             session,
             campaign_seed=campaign_seed,
             tests_per_group=tests_per_group,
-            generation_profile=generation_profile,
             expires_at=expires_at,
             is_sample=is_sample,
             reason="Registration requested autoGenerateVectorSets.",
@@ -710,25 +513,28 @@ def generate_vector_sets_for_session(
     if isinstance(session, JSONResponse):
         return session
     path = f"/acvp/v1/testSessions/{session_id}/vectorSets/generate"
+    legacy = _reject_legacy_local_session(session, path)
+    if isinstance(legacy, JSONResponse):
+        return legacy
     unavailable = _reject_if_session_unavailable(session, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
     if "negotiatedCapabilities" not in session:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "NEGOTIATED_CAPABILITIES_NOT_AVAILABLE",
             "This test session was not created from a registration container.",
             path,
         )
     if session["vectorSetIds"]:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SETS_ALREADY_GENERATED",
             "Vector sets have already been generated for this test session.",
             path,
         )
     if session["status"] != TestSessionStatus.CAPABILITIES_ACCEPTED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "INVALID_SESSION_STATE",
             "Vector sets can only be generated for a capabilitiesAccepted session.",
@@ -742,31 +548,16 @@ def generate_vector_sets_for_session(
             session["registration"],
             generation_provider,
         )
-        generation_profile = _resolve_generation_profile(
-            payload.generationProfile
-            if payload.generationProfile is not None
-            else session.get("generationProfile"),
-            generation_provider,
-        )
-        generation_profile = _strict_generation_profile_if_needed(
-            generation_profile,
-            generation_provider,
-            workflow_profile=str(session.get("workflowProfile", LOCAL_WORKFLOW_PROFILE)),
-            explicit_profile=payload.generationProfile is not None,
-        )
         tests_per_group = _resolve_tests_per_group(
             payload.testsPerGroup if payload.testsPerGroup is not None else session.get("testsPerGroup"),
-            generation_profile,
-            generation_provider,
         )
     except AcvpSchemaError as exc:
-        return acvp_skeleton_error(400, exc.code, exc.message, exc.path)
+        return acvp_error(400, exc.code, exc.message, exc.path)
 
     generated = _generate_and_store_vector_sets(
         session,
         campaign_seed=campaign_seed,
         tests_per_group=tests_per_group,
-        generation_profile=generation_profile,
         expires_at=_expires_at_from_seconds(payload.expiresInSeconds) or session.get("expiresAt"),
         is_sample=_vector_set_session_is_sample(session),
         reason="Explicit vector generation endpoint called.",
@@ -791,7 +582,6 @@ def _registration_session_response(session: Dict[str, Any]) -> Dict[str, Any]:
         "expiresAt": session.get("expiresAt"),
         "campaignSeed": session.get("campaignSeed"),
         "testsPerGroup": session.get("testsPerGroup"),
-        "generationProfile": session.get("generationProfile"),
         "isSample": session.get("isSample"),
         "stateHistory": list(session.get("stateHistory", [])),
     }
@@ -799,7 +589,7 @@ def _registration_session_response(session: Dict[str, Any]) -> Dict[str, Any]:
         response["vectorGeneration"] = session["vectorGeneration"]
     else:
         response["nextAction"] = VECTOR_GENERATION_AVAILABLE_ACTION
-    return with_skeleton_metadata(response)
+    return with_server_metadata(response)
 
 
 def _generate_and_store_vector_sets(
@@ -807,38 +597,20 @@ def _generate_and_store_vector_sets(
     *,
     campaign_seed: str,
     tests_per_group: int,
-    generation_profile: str,
     expires_at: Optional[str],
     is_sample: bool,
     reason: str,
 ) -> Optional[JSONResponse]:
-    use_nist_genval = _should_use_nist_genval(session, generation_profile)
     try:
-        if use_nist_genval:
-            prepared = _prepare_nist_generated_vector_sets(
-                session,
-                campaign_seed=campaign_seed,
-                generation_profile=generation_profile,
-                is_sample=is_sample,
-            )
-        else:
-            prompts = _generate_vector_sets_with_providers(
-                session["negotiatedCapabilities"],
-                campaign_seed=campaign_seed,
-                tests_per_group=tests_per_group,
-                generation_profile=generation_profile,
-            )
-            prepared = _prepare_generated_vector_sets(
-                session["testSessionId"],
-                prompts,
-                campaign_seed,
-                generation_profile,
-                is_sample,
-            )
+        prepared = _prepare_nist_generated_vector_sets(
+            session,
+            campaign_seed=campaign_seed,
+            is_sample=is_sample,
+        )
     except AcvpSchemaError as exc:
-        return acvp_skeleton_error(500, exc.code, exc.message, exc.path)
+        return acvp_error(500, exc.code, exc.message, exc.path)
     except GenValConfigurationError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_NOT_READY",
             str(exc),
@@ -846,7 +618,7 @@ def _generate_and_store_vector_sets(
             details=_nist_genval_error_details(),
         )
     except GenValArtifactError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_ARTIFACT_MISSING",
             str(exc),
@@ -854,19 +626,15 @@ def _generate_and_store_vector_sets(
             details=_nist_genval_error_details(),
         )
     except GenValExecutionError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_EXECUTION_ERROR",
             str(exc),
             "$",
             details=_nist_genval_error_details(),
         )
-    except AcvpProviderInputError as exc:
-        return acvp_skeleton_error(400, "ORACLE_INPUT_ERROR", str(exc), "$")
-    except AcvpProviderExecutionError as exc:
-        return acvp_skeleton_error(500, "ORACLE_EXECUTION_ERROR", str(exc), "$")
     except ValueError as exc:
-        return acvp_skeleton_error(500, "VECTOR_GENERATION_ERROR", str(exc), "$")
+        return acvp_error(500, "VECTOR_GENERATION_ERROR", str(exc), "$")
 
     vector_set_ids: List[str] = []
     vector_set_urls: List[str] = []
@@ -883,8 +651,8 @@ def _generate_and_store_vector_sets(
         transition_vector_set(
             vector_set,
             VectorSetStatus.READY.value,
-            reason="Expected results generated for negotiated vector set.",
-            metadata={"generationProfile": generation_profile},
+            reason="NIST GenVal generated the vector set.",
+            metadata={"executionBackend": EXECUTION_BACKEND},
         )
         save_acvp_vector_set(vector_set)
         vector_set_ids.append(vector_set["vectorSetId"])
@@ -909,82 +677,35 @@ def _generate_and_store_vector_sets(
         metadata={
             "campaignSeed": campaign_seed,
             "testsPerGroup": tests_per_group,
-            "generationProfile": generation_profile,
             "generatedVectorSetCount": len(vector_set_ids),
-            "provider": NIST_GENVAL_PROVIDER_ID if use_nist_genval else "local-python",
+            "provider": NIST_GENVAL_PROVIDER_ID,
         },
     )
     session["campaignSeed"] = campaign_seed
     session["testsPerGroup"] = tests_per_group
-    session["generationProfile"] = generation_profile
     session["vectorSetIds"] = vector_set_ids
     session["vectorSetUrls"] = vector_set_urls
     session["nextAction"] = "Download vector sets and submit results."
     session["vectorGeneration"] = {
         "campaignSeed": campaign_seed,
         "testsPerGroup": tests_per_group,
-        "effectiveMinimums": _generation_profile_minimums(
-            generation_profile,
-            _provider_for_registration_container(session["registration"]),
-        ),
         "generatedVectorSetCount": len(vector_set_ids),
         "modes": [
             normalize_acvp_json(vector_set["prompt"])["mode"]
             for vector_set in prepared
         ],
-        "generationProfile": generation_profile,
-        "provider": NIST_GENVAL_PROVIDER_ID if use_nist_genval else "local-python",
-        "providerName": NIST_GENVAL_PROVIDER_NAME if use_nist_genval else "Local Python ML-DSA provider",
-        "localSkeletonBehavior": not use_nist_genval,
-        "expectedResultsDebugOnly": use_nist_genval,
-        "hasInternalProjection": use_nist_genval,
+        "provider": NIST_GENVAL_PROVIDER_ID,
+        "providerName": NIST_GENVAL_PROVIDER_NAME,
+        "executionBackend": EXECUTION_BACKEND,
     }
     save_acvp_session(session)
     return None
-
-
-def _prepare_generated_vector_sets(
-    session_id: str,
-    prompts: List[Dict[str, Any]],
-    campaign_seed: str,
-    generation_profile: str,
-    is_sample: bool,
-) -> List[Dict[str, Any]]:
-    prepared: List[Dict[str, Any]] = []
-    for raw_prompt in prompts:
-        prompt = _payload_with_is_sample(raw_prompt, is_sample)
-        provider = _provider_for_prompt(prompt)
-        prompt_vs = provider.validate_prompt(prompt)
-        expected_results = provider.generate_expected_results(prompt)
-        provider.validate_response(expected_results, expected_mode=prompt_vs["mode"])
-        vector_set_id = str(uuid4())
-        prepared.append(
-            {
-                "vectorSetId": vector_set_id,
-                "testSessionId": session_id,
-                "status": VectorSetStatus.CREATED.value,
-                "prompt": prompt,
-                "expectedResults": expected_results,
-                "response": None,
-                "validationResult": None,
-                "report": None,
-                "generatedFromCapabilities": True,
-                "mode": prompt_vs["mode"],
-                "vsId": prompt_vs["vsId"],
-                "campaignSeed": campaign_seed,
-                "generationProfile": generation_profile,
-                "isSample": is_sample,
-                **SKELETON_METADATA,
-            }
-        )
-    return prepared
 
 
 def _prepare_nist_generated_vector_sets(
     session: Dict[str, Any],
     *,
     campaign_seed: str,
-    generation_profile: str,
     is_sample: bool,
 ) -> List[Dict[str, Any]]:
     settings = get_genval_settings()
@@ -1031,7 +752,6 @@ def _prepare_nist_generated_vector_sets(
                 "mode": prompt_vs["mode"],
                 "vsId": prompt_vs["vsId"],
                 "campaignSeed": campaign_seed,
-                "generationProfile": generation_profile,
                 "isSample": is_sample,
                 "provider": NIST_GENVAL_PROVIDER_ID,
                 "providerName": NIST_GENVAL_PROVIDER_NAME,
@@ -1039,21 +759,10 @@ def _prepare_nist_generated_vector_sets(
                 "hasInternalProjection": True,
                 "nistSourceCommit": source_commit,
                 "artifactPaths": _genval_artifact_paths(work_dir, artifacts),
-                **SKELETON_METADATA,
+                **SERVER_METADATA,
             }
         )
     return prepared
-
-
-def _should_use_nist_genval(
-    session: Dict[str, Any],
-    generation_profile: str,
-) -> bool:
-    workflow_profile = str(session.get("workflowProfile", LOCAL_WORKFLOW_PROFILE))
-    if is_strict_workflow(workflow_profile):
-        return True
-    provider = _provider_for_registration_container(session["registration"])
-    return generation_profile == getattr(provider, "nist_conformance_profile", None)
 
 
 def _genval_artifact_paths(work_dir: Path, artifacts: Any) -> Dict[str, str]:
@@ -1139,102 +848,20 @@ def _resolve_campaign_seed(
     return provided_seed.upper()
 
 
-def _resolve_generation_profile(
-    value: Optional[str],
-    provider: AcvpAlgorithmProvider,
-) -> str:
-    profiles = list(getattr(provider, "generation_profiles", []))
-    default_profile = getattr(provider, "default_generation_profile", None)
+def _resolve_tests_per_group(value: Optional[int]) -> int:
     if value is None:
-        if isinstance(default_profile, str):
-            return default_profile
+        return 1
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 10:
         raise AcvpSchemaError(
             "invalid_value",
-            "Provider does not expose a default generation profile.",
-            "$.generationProfile",
-        )
-    if not isinstance(value, str):
-        raise AcvpSchemaError(
-            "invalid_type",
-            "generationProfile must be a string",
-            "$.generationProfile",
-        )
-    if value not in profiles:
-        raise AcvpSchemaError(
-            "invalid_value",
-            "generationProfile must be one of: "
-            + ", ".join(sorted(profiles)),
-            "$.generationProfile",
-        )
-    return value
-
-
-def _strict_generation_profile_if_needed(
-    generation_profile: str,
-    provider: AcvpAlgorithmProvider,
-    *,
-    workflow_profile: str,
-    explicit_profile: bool,
-) -> str:
-    if explicit_profile or not is_strict_workflow(workflow_profile):
-        return generation_profile
-    nist_profile = getattr(provider, "nist_conformance_profile", None)
-    if isinstance(nist_profile, str):
-        return nist_profile
-    return generation_profile
-
-
-def _resolve_tests_per_group(
-    value: Optional[int],
-    generation_profile: str,
-    provider: AcvpAlgorithmProvider,
-) -> int:
-    default_tests_per_group = getattr(provider, "default_tests_per_group", None)
-    local_debug_profile = getattr(provider, "local_debug_profile", None)
-    max_tests_per_group = getattr(provider, "max_tests_per_group", None)
-    if value is None:
-        if isinstance(default_tests_per_group, int):
-            return default_tests_per_group
-        raise AcvpSchemaError(
-            "invalid_value",
-            "Provider does not expose a default testsPerGroup.",
-            "$.testsPerGroup",
-        )
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise AcvpSchemaError("invalid_type", "testsPerGroup must be an integer", "$.testsPerGroup")
-    if value < 1:
-        raise AcvpSchemaError(
-            "invalid_value",
-            "testsPerGroup must be at least 1",
-            "$.testsPerGroup",
-        )
-    if (
-        generation_profile == local_debug_profile
-        and isinstance(max_tests_per_group, int)
-        and value > max_tests_per_group
-    ):
-        raise AcvpSchemaError(
-            "invalid_value",
-            f"testsPerGroup must be between 1 and {max_tests_per_group}",
+            "testsPerGroup must be an integer between 1 and 10.",
             "$.testsPerGroup",
         )
     return value
 
 
-def _generation_profile_minimums(
-    generation_profile: str,
-    provider: AcvpAlgorithmProvider,
-) -> Dict[str, int]:
-    minimums = getattr(provider, "generation_profile_minimums", None)
-    if callable(minimums):
-        return dict(minimums(generation_profile))
-    return {}
-
-
-def _resolve_is_sample(value: Optional[bool], workflow_profile: str) -> bool:
-    if value is not None:
-        return bool(value)
-    return not is_strict_workflow(workflow_profile)
+def _resolve_is_sample(value: Optional[bool]) -> bool:
+    return bool(value) if value is not None else False
 
 
 def _payload_with_is_sample(payload: Any, is_sample: bool) -> Any:
@@ -1282,7 +909,7 @@ def get_test_session(session_id: str) -> Any:
         return session
     _expire_session_if_needed(session)
 
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             **_session_summary(session),
             "vectorSets": [
@@ -1339,51 +966,33 @@ def get_test_session_vector_sets(
     body["query"] = {"status": status} if status is not None else {}
     if not session["vectorSetIds"] and session["status"] == "capabilitiesAccepted":
         body["nextAction"] = VECTOR_GENERATION_AVAILABLE_ACTION
-    local_extension = body["extensions"]["localFips204Skeleton"]
-    local_extension["vectorSets"] = page
-    local_extension["query"] = body["query"]
-    return with_skeleton_metadata(body)
+    return with_server_metadata(body)
 
 
-def get_vector_set(
-    vector_set_id: str,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
+def get_vector_set(vector_set_id: str) -> Any:
     vector_set = get_vector_set_or_404(vector_set_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     path = f"/acvp/v1/vectorSets/{vector_set_id}"
-    return _get_vector_set_prompt_response(vector_set, path, workflow_profile=workflow_profile)
+    return _get_vector_set_prompt_response(vector_set, path)
 
 
-def get_vector_set_prompt(
-    session_id: str,
-    vector_set_id: str,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
+def get_vector_set_prompt(session_id: str, vector_set_id: str) -> Any:
     vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     return _get_vector_set_prompt_response(
         vector_set,
         _nested_vector_set_path(session_id, vector_set_id),
-        workflow_profile=workflow_profile,
     )
 
 
-def _get_vector_set_prompt_response(
-    vector_set: Dict[str, Any],
-    path: str,
-    *,
-    workflow_profile: str,
-) -> Any:
+def _get_vector_set_prompt_response(vector_set: Dict[str, Any], path: str) -> Any:
     unavailable = _reject_if_vector_unavailable(vector_set, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
     if vector_set["status"] == VectorSetStatus.CREATED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_NOT_READY",
             "Vector set is not ready for download.",
@@ -1400,96 +1009,54 @@ def _get_vector_set_prompt_response(
         save_acvp_vector_set(vector_set)
         _mark_session_downloaded_if_complete(vector_set["testSessionId"])
 
-    if is_strict_workflow(workflow_profile):
-        return vector_set["prompt"]
-
-    return with_skeleton_metadata(
-        {
-            "vectorSetId": vector_set["vectorSetId"],
-            "testSessionId": vector_set["testSessionId"],
-            "status": vector_set["status"],
-            "prompt": vector_set["prompt"],
-            "generatedFromCapabilities": vector_set.get("generatedFromCapabilities", False),
-            "generationProfile": vector_set.get("generationProfile"),
-            "campaignSeed": vector_set.get("campaignSeed"),
-            "isSample": _vector_set_is_sample(vector_set),
-            "downloadedAt": vector_set.get("downloadedAt"),
-            "expiresAt": vector_set.get("expiresAt"),
-            "stateHistory": list(vector_set.get("stateHistory", [])),
-        }
-    )
+    return vector_set["prompt"]
 
 
-def get_vector_set_expected_results(
-    vector_set_id: str,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
+def get_vector_set_expected_results(vector_set_id: str) -> Any:
     vector_set = get_vector_set_or_404(vector_set_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     path = f"/acvp/v1/vectorSets/{vector_set_id}/expectedResults"
     return _get_vector_set_expected_response(
-        vector_set,
-        path,
-        workflow_profile=workflow_profile,
+        vector_set, path,
     )
 
 
-def get_vector_set_expected(
-    session_id: str,
-    vector_set_id: str,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
+def get_vector_set_expected(session_id: str, vector_set_id: str) -> Any:
     vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     return _get_vector_set_expected_response(
         vector_set,
         f"{_nested_vector_set_path(session_id, vector_set_id)}/expected",
-        workflow_profile=workflow_profile,
     )
 
 
-def _get_vector_set_expected_response(
-    vector_set: Dict[str, Any],
-    path: str,
-    *,
-    workflow_profile: str,
-) -> Any:
+def _get_vector_set_expected_response(vector_set: Dict[str, Any], path: str) -> Any:
+    session = get_acvp_session(vector_set["testSessionId"])
+    if session is not None:
+        legacy = _reject_legacy_local_session(session, path)
+        if isinstance(legacy, JSONResponse):
+            return legacy
     unavailable = _reject_if_vector_unavailable(vector_set, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
     if vector_set["expectedResults"] is None:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "EXPECTED_RESULTS_NOT_READY",
-            "Expected results are not available for this local skeleton vector set.",
+            "Expected results are not available for this vector set.",
             path,
         )
 
-    if is_strict_workflow(workflow_profile):
-        if not _vector_set_is_sample(vector_set):
-            return acvp_skeleton_error(
-                403,
-                "EXPECTED_RESULTS_NOT_AVAILABLE_FOR_NON_SAMPLE",
-                "Expected results are not downloadable for non-sample vector sets.",
-                path,
-            )
-        return vector_set["expectedResults"]
-
-    return with_skeleton_metadata(
-        {
-            "vectorSetId": vector_set["vectorSetId"],
-            "testSessionId": vector_set["testSessionId"],
-            "expectedResults": vector_set["expectedResults"],
-            "status": vector_set["status"],
-            "isSample": _vector_set_is_sample(vector_set),
-            "expiresAt": vector_set.get("expiresAt"),
-            "localSkeletonExpectedEndpoint": True,
-        }
-    )
+    if not _vector_set_is_sample(vector_set):
+        return acvp_error(
+            403,
+            "EXPECTED_RESULTS_NOT_AVAILABLE",
+            "Expected results are not downloadable for non-sample vector sets.",
+            path,
+        )
+    return vector_set["expectedResults"]
 
 
 def submit_vector_set_results(
@@ -1499,7 +1066,6 @@ def submit_vector_set_results(
     *,
     show_expected: bool = False,
     update: bool = False,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
 ) -> Any:
     if session_id is None:
         vector_set = get_vector_set_or_404(vector_set_id)
@@ -1509,6 +1075,11 @@ def submit_vector_set_results(
         path = f"{_nested_vector_set_path(session_id, vector_set_id)}/results"
     if isinstance(vector_set, JSONResponse):
         return vector_set
+    session = get_acvp_session(vector_set["testSessionId"])
+    if session is not None:
+        legacy = _reject_legacy_local_session(session, path)
+        if isinstance(legacy, JSONResponse):
+            return legacy
     unavailable = _reject_if_vector_unavailable(vector_set, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
@@ -1519,25 +1090,24 @@ def submit_vector_set_results(
         VectorSetStatus.VALIDATED.value,
         VectorSetStatus.FAILED.value,
     }:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_NOT_READY",
             "Vector set is not ready for result submission.",
             path,
         )
-    session = get_acvp_session(vector_set["testSessionId"])
     if session is not None and session.get("submittedForValidation"):
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_ALREADY_FINALIZED",
             "Vector set results cannot be changed after session submit-for-validation.",
             path,
         )
-    if vector_set["expectedResults"] is None:
-        return acvp_skeleton_error(
-            409,
-            "EXPECTED_RESULTS_NOT_READY",
-            "Expected results must be generated before result submission in the local skeleton.",
+    if show_expected and not _vector_set_is_sample(vector_set):
+        return acvp_error(
+            403,
+            "EXPECTED_RESULTS_NOT_AVAILABLE",
+            "showExpected is not available for non-sample vector sets.",
             path,
         )
 
@@ -1546,19 +1116,11 @@ def submit_vector_set_results(
     try:
         provider = _provider_for_prompt(vector_set["prompt"])
         provider.validate_response(response, expected_mode=mode)
-        if _vector_set_uses_nist_genval(vector_set):
-            validation_result = _validate_with_nist_genval(vector_set, response)
-        else:
-            validation_result = provider.validate_results(
-                prompt=vector_set["prompt"],
-                expected_results=vector_set["expectedResults"],
-                response=response,
-            )
-        report = build_report(vector_set_id, validation_result)
+        validation_result = _validate_with_nist_genval(vector_set, response)
     except AcvpSchemaError as exc:
-        return acvp_skeleton_error(400, exc.code, exc.message, exc.path)
+        return acvp_error(400, exc.code, exc.message, exc.path)
     except GenValConfigurationError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_NOT_READY",
             str(exc),
@@ -1566,7 +1128,7 @@ def submit_vector_set_results(
             details=_nist_genval_error_details(),
         )
     except GenValArtifactError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_ARTIFACT_MISSING",
             str(exc),
@@ -1574,7 +1136,7 @@ def submit_vector_set_results(
             details=_nist_genval_error_details(),
         )
     except GenValExecutionError as exc:
-        return acvp_skeleton_error(
+        return acvp_error(
             500,
             "NIST_GENVAL_EXECUTION_ERROR",
             str(exc),
@@ -1582,7 +1144,7 @@ def submit_vector_set_results(
             details=_nist_genval_error_details(),
         )
     except ValueError as exc:
-        return acvp_skeleton_error(400, "VALIDATION_ERROR", str(exc), "$")
+        return acvp_error(400, "VALIDATION_ERROR", str(exc), "$")
 
     passed = _validation_passed(validation_result)
     final_status = (
@@ -1612,16 +1174,12 @@ def submit_vector_set_results(
         vector_set["validatingAt"] = vector_set["updatedAt"]
         vector_set["response"] = response
         vector_set["validationResult"] = validation_result
-        vector_set["report"] = report
-        vector_set["showExpected"] = bool(show_expected)
+        vector_set["report"] = None
+        vector_set["showExpected"] = False
         _transition_vector_if_needed(
             vector_set,
             final_status,
-            reason=(
-                "Vector set results validated by NIST GenVal."
-                if _vector_set_uses_nist_genval(vector_set)
-                else "Vector set results validated by local skeleton validator."
-            ),
+            reason="Vector set results validated by NIST GenVal.",
             metadata={"passed": passed},
         )
         vector_set["validatedAt"] = vector_set["updatedAt"]
@@ -1641,33 +1199,21 @@ def submit_vector_set_results(
         vector_set=vector_set,
         validation_result=validation_result,
         response=response,
-        expected_results=vector_set["expectedResults"],
-        show_expected=bool(show_expected),
+        expected_results=vector_set.get("expectedResults"),
+        show_expected=False,
     )
     vector_set["acvpResults"] = acvp_results
     save_acvp_vector_set(vector_set)
 
-    if is_strict_workflow(workflow_profile):
-        from fastapi import Response
+    from fastapi import Response
 
-        return Response(status_code=204)
-
-    return _vector_set_results_response(
-        vector_set,
-        acvp_results,
-        validation_result=validation_result,
-        report=report,
-        submission_action="updated" if update else "submitted",
-        local_put_replace_behavior=update,
-        local_post_returns_results=not update,
-    )
+    return Response(status_code=204)
 
 
 def get_vector_set_results(
     session_id: Optional[str],
     vector_set_id: str,
     *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
     show_expected: bool = False,
 ) -> Any:
     if session_id is None:
@@ -1678,100 +1224,51 @@ def get_vector_set_results(
         path = f"{_nested_vector_set_path(session_id, vector_set_id)}/results"
     if isinstance(vector_set, JSONResponse):
         return vector_set
+    session = get_acvp_session(vector_set["testSessionId"])
+    if session is not None:
+        legacy = _reject_legacy_local_session(session, path)
+        if isinstance(legacy, JSONResponse):
+            return legacy
     unavailable = _reject_if_vector_unavailable(vector_set, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
-    if is_strict_workflow(workflow_profile) and show_expected and not _vector_set_is_sample(vector_set):
-        return acvp_skeleton_error(
+    if show_expected and not _vector_set_is_sample(vector_set):
+        return acvp_error(
             403,
-            "SHOW_EXPECTED_NOT_AVAILABLE_FOR_NON_SAMPLE",
+            "EXPECTED_RESULTS_NOT_AVAILABLE",
             "showExpected is not available for strict non-sample vector sets.",
             path,
         )
 
-    acvp_results = vector_set.get("acvpResults")
-    if is_strict_workflow(workflow_profile):
-        return build_acvp_vector_set_results(
-            vector_set=vector_set,
-            validation_result=vector_set.get("validationResult"),
-            response=vector_set.get("response"),
-            expected_results=vector_set.get("expectedResults"),
-            show_expected=bool(show_expected),
-        )
-
-    if not isinstance(acvp_results, dict):
-        acvp_results = build_acvp_vector_set_results(
-            vector_set=vector_set,
-            validation_result=vector_set.get("validationResult"),
-            response=vector_set.get("response"),
-            expected_results=vector_set.get("expectedResults"),
-            show_expected=bool(vector_set.get("showExpected")),
-        )
-        vector_set["acvpResults"] = acvp_results
-        save_acvp_vector_set(vector_set)
-
-    return _vector_set_results_response(
-        vector_set,
-        acvp_results,
+    return build_acvp_vector_set_results(
+        vector_set=vector_set,
         validation_result=vector_set.get("validationResult"),
-        report=vector_set.get("report"),
+        response=vector_set.get("response"),
+        expected_results=vector_set.get("expectedResults"),
+        show_expected=False,
     )
 
 
-def get_test_session_results(
-    session_id: str,
-    *,
-    workflow_profile: str = LOCAL_WORKFLOW_PROFILE,
-) -> Any:
+def get_test_session_results(session_id: str) -> Any:
     session = _get_session(session_id)
     if isinstance(session, JSONResponse):
         return session
     path = f"/acvp/v1/testSessions/{session_id}/results"
+    legacy = _reject_legacy_local_session(session, path)
+    if isinstance(legacy, JSONResponse):
+        return legacy
     unavailable = _reject_if_session_unavailable(session, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
     if not session["vectorSetIds"] and session["status"] == TestSessionStatus.CAPABILITIES_ACCEPTED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SETS_NOT_GENERATED",
             "This registration session has no vector sets yet. Generate vector sets before requesting results.",
             path,
         )
 
-    if is_strict_workflow(workflow_profile):
-        return _strict_test_session_results(session)
-
-    vector_results = []
-    for vector_set_id in session["vectorSetIds"]:
-        vector_set = get_acvp_vector_set(vector_set_id)
-        if vector_set is None or vector_set["validationResult"] is None:
-            continue
-        vector_results.append(
-            {
-                "vectorSetId": vector_set_id,
-                "status": vector_set["status"],
-                "validationResult": vector_set["validationResult"],
-                "report": vector_set["report"],
-            }
-        )
-
-    if not vector_results:
-        return acvp_skeleton_error(
-            409,
-            "RESULTS_NOT_SUBMITTED",
-            "No vector set results have been submitted for this test session.",
-            path,
-        )
-
-    return with_skeleton_metadata(
-        {
-            "testSessionId": session_id,
-            "status": session["status"],
-            "summary": _session_result_summary(session),
-            "vectorSetResults": vector_results,
-            "stateHistory": list(session.get("stateHistory", [])),
-        }
-    )
+    return _strict_test_session_results(session)
 
 
 def _strict_test_session_results(session: Dict[str, Any]) -> Dict[str, Any]:
@@ -1812,11 +1309,14 @@ def submit_test_session_for_validation(session_id: str) -> Any:
     if isinstance(session, JSONResponse):
         return session
     path = f"/acvp/v1/testSessions/{session_id}/submit"
+    legacy = _reject_legacy_local_session(session, path)
+    if isinstance(legacy, JSONResponse):
+        return legacy
     unavailable = _reject_if_session_unavailable(session, path)
     if isinstance(unavailable, JSONResponse):
         return unavailable
     if not session["vectorSetIds"] and session["status"] == TestSessionStatus.CAPABILITIES_ACCEPTED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SETS_NOT_GENERATED",
             "This registration session has no vector sets yet. Generate vector sets before session submit.",
@@ -1825,14 +1325,14 @@ def submit_test_session_for_validation(session_id: str) -> Any:
 
     summary = _session_result_summary(session)
     if summary["submittedVectorSets"] == 0:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "RESULTS_NOT_SUBMITTED",
             "No vector set results have been submitted for this test session.",
             path,
         )
     if summary["pendingVectorSets"] > 0:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_RESULTS_INCOMPLETE",
             "All vector set results must be submitted before session-level validation.",
@@ -1864,7 +1364,7 @@ def submit_test_session_for_validation(session_id: str) -> Any:
         save_acvp_session(session)
         summary = _session_result_summary(session)
 
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             "testSessionId": session_id,
             "status": session["status"],
@@ -1907,12 +1407,11 @@ def delete_test_session(session_id: str) -> Any:
         except StateTransitionError as exc:
             return _state_transition_error_response(exc)
 
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             "cancelled": True,
             "testSessionId": session_id,
             "status": session["status"],
-            "localSkeletonBehavior": True,
             "stateHistory": list(session.get("stateHistory", [])),
         }
     )
@@ -1944,13 +1443,12 @@ def cancel_vector_set(session_id: Optional[str], vector_set_id: str) -> Any:
         except StateTransitionError as exc:
             return _state_transition_error_response(exc)
 
-    return with_skeleton_metadata(
+    return with_server_metadata(
         {
             "cancelled": vector_set["status"] == VectorSetStatus.CANCELLED.value,
             "vectorSetId": vector_set_id,
             "testSessionId": vector_set["testSessionId"],
             "status": vector_set["status"],
-            "localSkeletonBehavior": True,
             "stateHistory": list(vector_set.get("stateHistory", [])),
         }
     )
@@ -1959,7 +1457,7 @@ def cancel_vector_set(session_id: Optional[str], vector_set_id: str) -> Any:
 def get_session_or_404(session_id: str) -> Any:
     session = get_acvp_session(session_id)
     if session is None:
-        return acvp_skeleton_error(
+        return acvp_error(
             404,
             "UNKNOWN_TEST_SESSION",
             "Unknown testSessionId.",
@@ -1971,7 +1469,7 @@ def get_session_or_404(session_id: str) -> Any:
 def get_vector_set_or_404(vector_set_id: str) -> Any:
     vector_set = get_acvp_vector_set(vector_set_id)
     if vector_set is None:
-        return acvp_skeleton_error(
+        return acvp_error(
             404,
             "UNKNOWN_VECTOR_SET",
             "Unknown vectorSetId.",
@@ -1986,7 +1484,7 @@ def get_vector_set_for_session_or_404(session_id: str, vector_set_id: str) -> An
         return session
     vector_set = get_acvp_vector_set(vector_set_id)
     if vector_set is None or vector_set.get("testSessionId") != session_id:
-        return acvp_skeleton_error(
+        return acvp_error(
             404,
             "UNKNOWN_VECTOR_SET",
             "Unknown vectorSetId for test session.",
@@ -1999,8 +1497,33 @@ def _get_session(session_id: str) -> Any:
     return get_session_or_404(session_id)
 
 
-def _get_vector_set(vector_set_id: str) -> Any:
-    return get_vector_set_or_404(vector_set_id)
+def _legacy_local_session(session: Dict[str, Any]) -> bool:
+    """Classify records created before the strict-only policy without converting them."""
+    if session.get("workflowPolicy") == WORKFLOW_POLICY and session.get("executionBackend") == EXECUTION_BACKEND:
+        return False
+    if session.get("workflowProfile") == WORKFLOW_POLICY:
+        session["workflowPolicy"] = WORKFLOW_POLICY
+        session["executionBackend"] = EXECUTION_BACKEND
+        save_acvp_session(session)
+        return False
+    vector_sets = _session_vector_sets(session)
+    if vector_sets and all(vector.get("provider") == NIST_GENVAL_PROVIDER_ID for vector in vector_sets):
+        session["workflowPolicy"] = WORKFLOW_POLICY
+        session["executionBackend"] = EXECUTION_BACKEND
+        save_acvp_session(session)
+        return False
+    return True
+
+
+def _reject_legacy_local_session(session: Dict[str, Any], path: str) -> Optional[JSONResponse]:
+    if not _legacy_local_session(session):
+        return None
+    return acvp_error(
+        409,
+        "LEGACY_LOCAL_SESSION_NOT_SUPPORTED",
+        "Legacy local sessions cannot be generated, submitted, or validated by the strict service.",
+        path,
+    )
 
 
 def _session_summary(session: Dict[str, Any]) -> Dict[str, Any]:
@@ -2033,8 +1556,11 @@ def _session_summary(session: Dict[str, Any]) -> Dict[str, Any]:
         "testGroupCount": first_summary.get("testGroupCount", 0),
         "testCaseCount": first_summary.get("testCaseCount", 0),
         "stateHistory": list(session.get("stateHistory", [])),
-        **SKELETON_METADATA,
+        **SERVER_METADATA,
     }
+    if _legacy_local_session(session):
+        summary["legacy"] = True
+        summary["legacyStatus"] = "unsupported"
     if "negotiatedCapabilities" in session:
         summary["negotiatedCapabilities"] = session["negotiatedCapabilities"]
         summary["negotiationWarnings"] = session.get("negotiationWarnings", [])
@@ -2056,11 +1582,9 @@ def _vector_set_summary(vector_set: Dict[str, Any]) -> Dict[str, Any]:
             vector_set["vectorSetId"],
         ),
         "generatedFromCapabilities": vector_set.get("generatedFromCapabilities", False),
-        "generationProfile": vector_set.get("generationProfile"),
         "campaignSeed": vector_set.get("campaignSeed"),
         "provider": vector_set.get("provider"),
         "providerName": vector_set.get("providerName"),
-        "expectedResultsDebugOnly": vector_set.get("expectedResultsDebugOnly", False),
         "hasInternalProjection": vector_set.get("hasInternalProjection", False),
         "nistSourceCommit": vector_set.get("nistSourceCommit"),
         "mode": vector_set.get("mode", prompt_summary.get("mode")),
@@ -2073,7 +1597,7 @@ def _vector_set_summary(vector_set: Dict[str, Any]) -> Dict[str, Any]:
         "expiresAt": vector_set.get("expiresAt"),
         "stateHistory": list(vector_set.get("stateHistory", [])),
         **prompt_summary,
-        **SKELETON_METADATA,
+        **SERVER_METADATA,
     }
 
 
@@ -2094,10 +1618,6 @@ def _response_with_prompt_metadata(response: Any, vector_set: Dict[str, Any]) ->
         if normalized.get(key) is None and prompt.get(key) is not None:
             normalized[key] = prompt[key]
     return normalized
-
-
-def _vector_set_uses_nist_genval(vector_set: Dict[str, Any]) -> bool:
-    return vector_set.get("provider") == NIST_GENVAL_PROVIDER_ID
 
 
 def _validate_with_nist_genval(
@@ -2145,51 +1665,9 @@ def _validate_with_nist_genval(
         prompt=vector_set["prompt"],
     )
     validation_result["metadata"]["providerName"] = NIST_GENVAL_PROVIDER_NAME
-    validation_result["metadata"]["expectedResultsDebugOnly"] = True
+    validation_result["metadata"]["executionBackend"] = EXECUTION_BACKEND
     validation_result["metadata"]["validationArtifact"] = str(validation_path)
     return validation_result
-
-
-def _vector_set_results_response(
-    vector_set: Dict[str, Any],
-    acvp_results: Dict[str, Any],
-    *,
-    validation_result: Optional[Dict[str, Any]] = None,
-    report: Optional[Dict[str, Any]] = None,
-    submission_action: Optional[str] = None,
-    local_put_replace_behavior: bool = False,
-    local_post_returns_results: bool = False,
-) -> Dict[str, Any]:
-    local_extension: Dict[str, Any] = {
-        **SKELETON_METADATA,
-        "vectorSetId": vector_set["vectorSetId"],
-        "testSessionId": vector_set["testSessionId"],
-        "status": vector_set["status"],
-        "showExpected": bool(vector_set.get("showExpected")),
-        "stateHistory": list(vector_set.get("stateHistory", [])),
-        "provider": vector_set.get("provider"),
-        "providerName": vector_set.get("providerName"),
-        "expectedResultsDebugOnly": vector_set.get("expectedResultsDebugOnly", False),
-        "hasInternalProjection": vector_set.get("hasInternalProjection", False),
-        "nistSourceCommit": vector_set.get("nistSourceCommit"),
-    }
-    if submission_action is not None:
-        local_extension["submissionAction"] = submission_action
-    if local_put_replace_behavior:
-        local_extension["localPutReplaceBehavior"] = True
-        local_extension["localSkeletonPutReplaceBehavior"] = True
-    if local_post_returns_results:
-        local_extension["localPostReturnsResults"] = True
-    if validation_result is not None:
-        local_extension["validationResult"] = validation_result
-    if report is not None:
-        local_extension["report"] = report
-
-    body = {
-        **acvp_results,
-        "extensions": {"localFips204Skeleton": local_extension},
-    }
-    return with_skeleton_metadata(body)
 
 
 def _get_session_label(session_id: str) -> Optional[str]:
@@ -2343,14 +1821,14 @@ def _reject_if_session_unavailable(
 ) -> Optional[JSONResponse]:
     _expire_session_if_needed(session)
     if session["status"] == TestSessionStatus.EXPIRED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "TEST_SESSION_EXPIRED",
             "Test session has expired in the local skeleton state machine.",
             path,
         )
     if session["status"] == TestSessionStatus.CANCELLED.value and not allow_cancelled:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "TEST_SESSION_CANCELLED",
             "Test session has been cancelled.",
@@ -2377,14 +1855,14 @@ def _reject_if_vector_unavailable(
 
     _expire_vector_set_if_needed(vector_set)
     if vector_set["status"] == VectorSetStatus.EXPIRED.value:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_EXPIRED",
             "Vector set has expired in the local skeleton state machine.",
             path,
         )
     if vector_set["status"] == VectorSetStatus.CANCELLED.value and not allow_cancelled:
-        return acvp_skeleton_error(
+        return acvp_error(
             409,
             "VECTOR_SET_CANCELLED",
             "Vector set has been cancelled.",
@@ -2460,7 +1938,7 @@ def _cancel_session_if_all_vector_sets_cancelled(session_id: str) -> None:
 
 
 def _state_transition_error_response(exc: StateTransitionError) -> JSONResponse:
-    return acvp_skeleton_error(409, exc.code, exc.message, exc.path)
+    return acvp_error(409, exc.code, exc.message, exc.path)
 
 
 def _validate_status_filter(
@@ -2472,7 +1950,7 @@ def _validate_status_filter(
     if status is None:
         return None
     if status not in allowed:
-        return acvp_skeleton_error(
+        return acvp_error(
             400,
             "INVALID_QUERY_PARAMETER",
             f"Unsupported {entity} status filter.",

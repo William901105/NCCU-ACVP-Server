@@ -63,7 +63,8 @@ def test_acvp_v1_algorithms_advertises_shake_generation_support() -> None:
 
     assert "SHAKE-128" in entry["external"]["hashAlgs"]
     assert "SHAKE-256" in entry["external"]["hashAlgs"]
-    assert not any("unsupported by the local Python preHash oracle" in item for item in entry["localOracleLimitations"])
+    assert entry["workflowPolicy"] == "strict"
+    assert entry["executionBackend"] == "nist-genval"
 
 
 def test_siggen_external_prehash_shake_expected_results_are_generated() -> None:

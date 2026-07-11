@@ -220,7 +220,6 @@ select {
 .state-chip.strict,
 .state-chip.sample,
 .state-chip.passed,
-.state-chip.local-wrapper,
 .state-chip.strict-payload {
   background: #dff5e8;
   color: #0f6b3f;

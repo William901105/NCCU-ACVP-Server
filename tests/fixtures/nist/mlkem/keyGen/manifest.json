@@ -1,0 +1,45 @@
+{
+  "stage": 4,
+  "stageName": "mlkem-genval-readiness",
+  "nccuCommit": "2a351bc189cecafaecaa96bf1cfd91234d42d7b0",
+  "strictBaseCommit": "2a351bc189cecafaecaa96bf1cfd91234d42d7b0",
+  "captureTimestamp": "2026-07-11T13:50:36Z",
+  "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "reference203Commit": "61b549e51ca18c75c303cf83f6fb58f40c1de700",
+  "dotnetVersion": "8.0.422",
+  "referenceSource": {
+    "repository": "https://github.com/hhhylaiii/ACVP-Server",
+    "commit": "61b549e51ca18c75c303cf83f6fb58f40c1de700"
+  },
+  "algorithm": "ML-KEM",
+  "mode": "keyGen",
+  "revision": "FIPS203",
+  "isSample": true,
+  "commands": {
+    "check": "scripts/nist/run_genval.sh check registration.json from an isolated work directory",
+    "generate": "scripts/nist/run_genval.sh generate registration.json from an isolated work directory"
+  },
+  "exitCodes": {
+    "check": 0,
+    "generate": 0
+  },
+  "checkExitCode": 0,
+  "generateExitCode": 0,
+  "artifacts": {
+    "prompt": "prompt.json",
+    "internalProjection": "internalProjection.json",
+    "expectedResults": "expectedResults.json"
+  },
+  "files": {
+    "check.exitcode.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "check.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "check.stdout.txt": "e97c4fdb1c90efa67dce77aca7e769e61f2dca5919fee789578dc53aacf876b5",
+    "expectedResults.json": "23800b19b61afc0775ae1b4608fd368b1e09416636895a029b743cc137a933c9",
+    "generate.exitcode.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "generate.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "generate.stdout.txt": "57e5b33eead4dae9cc454244e1b645f58a3351b26c1c5067884f54bafff8de25",
+    "internalProjection.json": "648109e91a9a45a6a1390cf9df3890b8e5c3aec4476d3225edb704f78f2998d4",
+    "prompt.json": "b23a3acc8ece33a2a4b1ef049ed08210510f344a2b0ac5fc9bb3d54570e36fda",
+    "registration.json": "47e8f9d6c477c5798fa34ea6138fbba8e4fd5708d262f681fb4bb1bf000bd2c0"
+  }
+}

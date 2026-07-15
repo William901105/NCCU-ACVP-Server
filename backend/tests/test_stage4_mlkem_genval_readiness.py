@@ -9,9 +9,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "nist" / "mlkem"
 COPY_SCRIPT = REPO_ROOT / "scripts" / "nist" / "copy_nist_genval.sh"
 STRICT_BASE_COMMIT = "2a351bc189cecafaecaa96bf1cfd91234d42d7b0"
+CAPTURE_FEATURE_COMMIT = "531cc733a1bdfebe49063c0d0717116f19376a4a"
 NIST_SOURCE_COMMIT = "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0"
 REFERENCE_COMMIT = "61b549e51ca18c75c303cf83f6fb58f40c1de700"
 PARAMETER_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}
+FORBIDDEN_PATH_TOKENS = ("/root/", "/home/", "/Users/", "C:\\", "D:\\", "/tmp/nccu-acvp-stage4")
+FORBIDDEN_ORLEANS_MESSAGES = (
+    "Failed initializing Orleans client connection",
+    "System.TimeoutException",
+    "Response did not arrive on time",
+)
 
 CASES = {
     "keyGen": {
@@ -108,6 +115,8 @@ def test_mlkem_capture_logs_record_successful_nist_check_and_generate() -> None:
             assert (fixture_root / f"{phase}.exitcode.txt").read_text(encoding="utf-8") == "0\n"
             assert f"Running in {phase.title()} mode for ML-KEM-{nist_mode}-FIPS203" in stdout
             assert stderr == ""
+            assert all(message not in stdout for message in FORBIDDEN_ORLEANS_MESSAGES)
+            assert all(message not in stderr for message in FORBIDDEN_ORLEANS_MESSAGES)
 
 
 def test_mlkem_manifests_pin_source_provenance_and_artifact_hashes() -> None:
@@ -117,8 +126,8 @@ def test_mlkem_manifests_pin_source_provenance_and_artifact_hashes() -> None:
 
         assert manifest["stage"] == 4
         assert manifest["stageName"] == "mlkem-genval-readiness"
-        assert manifest["nccuCommit"] == STRICT_BASE_COMMIT
         assert manifest["strictBaseCommit"] == STRICT_BASE_COMMIT
+        assert manifest["stage4FeatureCommit"] == CAPTURE_FEATURE_COMMIT
         assert manifest["nistSourceCommit"] == NIST_SOURCE_COMMIT
         assert manifest["reference203Commit"] == REFERENCE_COMMIT
         assert manifest["dotnetVersion"] == "8.0.422"
@@ -148,6 +157,19 @@ def test_mlkem_manifests_pin_source_provenance_and_artifact_hashes() -> None:
             artifact = fixture_root / relative_path
             assert artifact.is_file(), artifact
             assert hashlib.sha256(artifact.read_bytes()).hexdigest() == expected_hash
+
+
+def test_mlkem_tracked_text_evidence_has_no_machine_paths_or_temp_paths() -> None:
+    for fixture_root in (FIXTURE_ROOT / "keyGen", FIXTURE_ROOT / "encapDecap"):
+        evidence_files = [
+            *fixture_root.glob("*.stdout.txt"),
+            *fixture_root.glob("*.stderr.txt"),
+            fixture_root / "manifest.json",
+            fixture_root / "registration.json",
+        ]
+        for path in evidence_files:
+            text = path.read_text(encoding="utf-8")
+            assert all(token not in text for token in FORBIDDEN_PATH_TOKENS), path
 
 
 def test_copy_script_retains_mldsa_and_adds_mlkem_json_file_allowlist() -> None:

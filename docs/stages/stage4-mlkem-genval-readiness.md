@@ -20,6 +20,8 @@ enablement, local fallback, database artifact handling, or worker support.
 ## Provenance
 
 - NCCU strict base commit: `2a351bc189cecafaecaa96bf1cfd91234d42d7b0`.
+- Feature commit used as the capture source:
+  `531cc733a1bdfebe49063c0d0717116f19376a4a`.
 - Vendored NIST ACVP-Server source commit:
   `15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0`.
 - Static-reference source: `https://github.com/hhhylaiii/ACVP-Server` at
@@ -53,13 +55,23 @@ Each directory contains its registration, NIST-produced `prompt.json`,
 `internalProjection.json`, and `expectedResults.json`, complete check and
 generate stdout/stderr captures, recorded exit codes, and a SHA-256 manifest.
 Both `check` and `generate` exited with `0` on
-`2026-07-11T13:50:36Z`. Generation ran first in separate temporary work
+`2026-07-15T06:21:57Z`. Before capture, the stale project ServerHost was
+stopped and ports `30000`, `11111`, and `8081` were verified free. A single
+new ServerHost then listened on all three ports; its only startup messages
+were the platform performance-counter warnings. Generation ran first in separate temporary work
 directories and the resulting files were then copied into the fixture tree.
 
 The runner reported `ML-KEM-KeyGen-FIPS203` and
 `ML-KEM-EncapDecap-FIPS203` for their respective operations. The generated
 prompt and internal projection preserve all requested parameter sets; the
 `encapDecap` artifacts preserve all four requested functions.
+
+| Mode | Operation | Exit code | Artifacts | Orleans clean |
+| --- | --- | ---: | --- | --- |
+| `keyGen` | Check | 0 | Prompt inputs accepted | Yes |
+| `keyGen` | Generate | 0 | `prompt.json`, `internalProjection.json`, `expectedResults.json` | Yes |
+| `encapDecap` | Check | 0 | Prompt inputs accepted | Yes |
+| `encapDecap` | Generate | 0 | `prompt.json`, `internalProjection.json`, `expectedResults.json` | Yes |
 
 ## Generated Prompt Shape
 
@@ -104,18 +116,18 @@ runs into a live NIST integration dependency.
 
 ## Regression And Limitations
 
-The captured runner stdout includes local Orleans client connection retries
-before generation completes. Both operations still exit with `0`, and the
-complete stdout/stderr captures are retained in the fixtures. A non-fatal
-Orleans Dashboard `:8081` bind conflict was also observed in the capture
-environment; it did not prevent the GenVal runner from generating artifacts.
+The previous captures contained machine-specific paths and Orleans client
+retries. They were replaced by the clean capture above rather than edited to
+remove failure messages. The final tracked stdout/stderr contains no machine
+path, temporary path, client timeout, initialization failure, Dashboard bind
+conflict, or fatal message. The regression test enforces these gates.
 
 The Stage 4 fixture test validates provenance, hashes, identities, parameter
 sets, functions, prompt fields, and copy-script allowlist without requiring
-Orleans. The complete backend suite passed with `64 passed`; the frontend
-production build passed. ML-DSA behavior was exercised by the full backend
-suite and no NIST source changed, so no additional ML-DSA GenVal capture was
-required.
+Orleans. The complete backend suite was rerun with `65 passed`, and the
+frontend production build passed after `npm ci`. ML-DSA behavior remains
+covered by the full backend suite;
+no NIST source changed, so no additional ML-DSA GenVal capture was required.
 
 ML-KEM remains unavailable to the production registry, API, and frontend. No
 response-validation parity or real ML-KEM IUT harness has been established.

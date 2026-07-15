@@ -1,9 +1,9 @@
 {
   "stage": 4,
   "stageName": "mlkem-genval-readiness",
-  "nccuCommit": "2a351bc189cecafaecaa96bf1cfd91234d42d7b0",
   "strictBaseCommit": "2a351bc189cecafaecaa96bf1cfd91234d42d7b0",
-  "captureTimestamp": "2026-07-11T13:50:36Z",
+  "stage4FeatureCommit": "531cc733a1bdfebe49063c0d0717116f19376a4a",
+  "captureTimestamp": "2026-07-15T06:21:57Z",
   "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
   "reference203Commit": "61b549e51ca18c75c303cf83f6fb58f40c1de700",
   "dotnetVersion": "8.0.422",
@@ -34,12 +34,12 @@
     "check.exitcode.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
     "check.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "check.stdout.txt": "e97c4fdb1c90efa67dce77aca7e769e61f2dca5919fee789578dc53aacf876b5",
-    "expectedResults.json": "23800b19b61afc0775ae1b4608fd368b1e09416636895a029b743cc137a933c9",
+    "expectedResults.json": "65641fb3796b81f3ecb7ce3b37d899a47d188c337fee21193c97e6f7e7907a0d",
     "generate.exitcode.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
     "generate.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "generate.stdout.txt": "57e5b33eead4dae9cc454244e1b645f58a3351b26c1c5067884f54bafff8de25",
-    "internalProjection.json": "648109e91a9a45a6a1390cf9df3890b8e5c3aec4476d3225edb704f78f2998d4",
-    "prompt.json": "b23a3acc8ece33a2a4b1ef049ed08210510f344a2b0ac5fc9bb3d54570e36fda",
+    "generate.stdout.txt": "9bd1b3fd8e7bd0134e051ead96eebd6437a99d33af87d63688041b483de356b7",
+    "internalProjection.json": "b42df1a241e0a8026cd652d19d0e78a37dbf21bd8f9f6a2cf957c9f227f07b77",
+    "prompt.json": "abf6917d8f6c46a3c6aa2e703511320ac0f4a8c0ebed278e77e52b752aa8df3c",
     "registration.json": "47e8f9d6c477c5798fa34ea6138fbba8e4fd5708d262f681fb4bb1bf000bd2c0"
   }
 }

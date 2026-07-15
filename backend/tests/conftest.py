@@ -15,6 +15,8 @@ if not (BACKEND_ROOT / "app" / "storage").exists():
 while str(BACKEND_ROOT) in sys.path:
     sys.path.remove(str(BACKEND_ROOT))
 sys.path.insert(0, str(BACKEND_ROOT))
+REPO_ROOT = BACKEND_ROOT.parent
+MLKEM_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "nist" / "mlkem"
 
 
 def _ensure_backend_app_package() -> None:
@@ -60,3 +62,12 @@ def isolated_sqlite_db(tmp_path, monkeypatch):
     reset_db_for_tests()
     yield
     reset_db_for_tests()
+
+
+@pytest.fixture
+def load_mlkem_fixture():
+    def load(mode: str, artifact: str):
+        path = MLKEM_FIXTURE_ROOT / mode / f"{artifact}.json"
+        return __import__("json").loads(path.read_text(encoding="utf-8"))
+
+    return load

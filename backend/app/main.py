@@ -28,9 +28,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="NCCU ACVP Server | FIPS 204 / ML-DSA",
+    title="NCCU ACVP Server | FIPS 203 / FIPS 204",
     version="0.1.0",
-    description="NCCU ACVP Server strict ML-DSA ACVP workflow using NIST GenVal.",
+    description=(
+        "NCCU ACVP Server strict ML-KEM and ML-DSA ACVP workflow "
+        "using NIST GenVal."
+    ),
     lifespan=lifespan,
 )
 

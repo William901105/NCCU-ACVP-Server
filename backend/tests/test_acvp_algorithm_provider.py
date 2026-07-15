@@ -13,6 +13,7 @@ from app.acvp_core.registry import (
     ModuleNotFoundError,
 )
 from app.algorithms.mldsa import MldsaAlgorithmModule
+from app.algorithms.mlkem import MlkemAlgorithmModule
 
 
 def test_algorithm_identity_validates_hashes_and_formats() -> None:
@@ -72,11 +73,12 @@ def test_unknown_identity_raises_module_not_found() -> None:
         AlgorithmModuleRegistry().get_module(AlgorithmIdentity("UNKNOWN", "mode", "R1"))
 
 
-def test_production_registry_contains_mldsa_modes_and_descriptor() -> None:
+def test_production_registry_contains_mldsa_and_mlkem_descriptors() -> None:
     registry = build_algorithm_registry()
-    descriptor = registry.list_descriptors()[0]
+    descriptors = registry.list_descriptors()
+    descriptor = descriptors[0]
 
-    assert len(registry) == 1
+    assert len(registry) == 2
     assert descriptor["providerId"] == "nist-ml-dsa-fips204"
     assert descriptor["algorithm"] == "ML-DSA"
     assert descriptor["revision"] == "FIPS204"
@@ -88,6 +90,13 @@ def test_production_registry_contains_mldsa_modes_and_descriptor() -> None:
         assert isinstance(
             registry.get_module(AlgorithmIdentity("ML-DSA", mode, "FIPS204")),
             MldsaAlgorithmModule,
+        )
+    mlkem = descriptors[1]
+    assert mlkem["providerId"] == "nist-ml-kem-fips203"
+    for mode in mlkem["modes"]:
+        assert isinstance(
+            registry.get_module(AlgorithmIdentity("ML-KEM", mode, "FIPS203")),
+            MlkemAlgorithmModule,
         )
 
 

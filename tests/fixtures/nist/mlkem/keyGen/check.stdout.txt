@@ -1,0 +1,2 @@
+Bootstrapping application using environment dev
+Info GenValApp Running in Check mode for ML-KEM-KeyGen-FIPS203

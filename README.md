@@ -116,7 +116,10 @@ uvicorn app.main:app --reload --port 8000
 ## Scope
 
 Supported protocol work is ML-DSA `keyGen`, `sigGen`, and `sigVer` for FIPS 204.
-ML-KEM / FIPS 203 is not part of this project stage.
+ML-KEM / FIPS 203 has NIST GenVal readiness verified only for `keyGen` and
+`encapDecap`. The ML-KEM backend module is not registered, FIPS 203 is not a
+production algorithm descriptor, and there is no API, frontend enablement, or
+production support in this stage.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
@@ -124,3 +127,5 @@ Stage 2 removal details are recorded in
 [`docs/stages/stage2-remove-local-runtime.md`](docs/stages/stage2-remove-local-runtime.md).
 Stage 3 architecture details are recorded in
 [`docs/stages/stage3-algorithm-neutral-core.md`](docs/stages/stage3-algorithm-neutral-core.md).
+Stage 4 ML-KEM GenVal readiness evidence is recorded in
+[`docs/stages/stage4-mlkem-genval-readiness.md`](docs/stages/stage4-mlkem-genval-readiness.md).

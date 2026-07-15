@@ -34,6 +34,8 @@ rsync -a --delete \
 
 mkdir -p "${TARGET_ROOT}/gen-val/json-files"
 for name in \
+  ML-KEM-keyGen-FIPS203 \
+  ML-KEM-encapDecap-FIPS203 \
   ML-DSA-keyGen-FIPS204 \
   ML-DSA-sigGen-FIPS204 \
   ML-DSA-sigVer-FIPS204
@@ -46,7 +48,7 @@ do
       "${SOURCE_ROOT}/gen-val/json-files/${name}/" \
       "${TARGET_ROOT}/gen-val/json-files/${name}/"
   else
-    echo "Warning: missing ML-DSA json-files directory: ${name}" >&2
+    echo "Warning: missing NIST GenVal json-files directory: ${name}" >&2
   fi
 done
 

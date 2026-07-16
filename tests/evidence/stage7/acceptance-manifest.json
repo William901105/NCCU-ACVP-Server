@@ -1,0 +1,11 @@
+{
+  "stage": "Stage 7 - NIST Priority-0 Protocol Interoperability",
+  "branch": "feature/stage7-nist-priority0-interoperability",
+  "stage7BaseStrictCommit": "cc581adf4e0ea986ac92f5850afc8b75515b3339",
+  "featureFinalCommit": "bbcddee7d798604c4229f960742e67d80157bb77",
+  "officialNistReferenceCommit": "178fe4085b0bffc4f8b94433c965229623dc3bc7",
+  "vendoredNistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "findingsRemediated": ["F-01", "F-02", "F-03"],
+  "certificationAuthorityConnected": false,
+  "cavpCertificationClaimed": false
+}

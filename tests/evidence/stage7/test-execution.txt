@@ -1,0 +1,42 @@
+Stage 7 acceptance execution
+Date: 2026-07-16
+
+Stage 4 focused
+  python3 -m pytest -q tests/test_stage4_mlkem_genval_readiness.py
+  PASS: 6 passed in 1.58 seconds
+
+Stage 5 focused
+  python3 -m pytest -q tests/test_mlkem_algorithm_module.py tests/test_mlkem_registration_schema.py tests/test_mlkem_vector_schema.py tests/test_mlkem_response_schema.py tests/test_mlkem_nist_mapper.py tests/test_mlkem_validation_normalizer.py
+  PASS: 96 passed in 24.58 seconds
+
+Stage 6 deterministic and provider
+  python3 -m pytest -q tests/test_stage6_mlkem_api_e2e.py tests/test_stage6_mlkem_api_errors.py tests/test_genval_nist_cli_provider.py
+  PASS: 16 passed in 9.22 seconds
+
+Stage 7 focused
+  python3 -m pytest -q tests/test_stage7_registration_envelope.py tests/test_stage7_public_vs_id.py tests/test_stage7_certification_requests.py tests/test_stage7_storage_migration.py
+  PASS: 30 passed in 13.43 seconds
+
+Full backend
+  python3 -m pytest
+  PASS: 205 passed, 4 skipped in 66.26 seconds
+
+Live NIST normal
+  NCCU_ACVP_LIVE_GENVAL=1 python3 -m pytest -q tests/test_stage6_mlkem_live_genval.py
+  PASS: 3 passed, 1 skipped in 59.58 seconds
+
+Live NIST unavailable
+  NCCU_ACVP_LIVE_GENVAL=1 NCCU_ACVP_LIVE_GENVAL_UNAVAILABLE=1 python3 -m pytest -q tests/test_stage6_mlkem_live_genval.py -k unavailable
+  PASS: 1 passed, 3 deselected in 6.82 seconds
+
+Frontend
+  npm ci
+  PASS: 67 packages installed; audit reported 1 moderate and 1 high vulnerability
+  npm run build
+  PASS: TypeScript and Vite build; 34 modules transformed in 884 ms
+
+Repository
+  git diff --check
+  PASS
+  Forbidden Stage 6 evidence, audit, fixtures, crypto schemas, NIST source, and frontend source changes: none
+  Orleans after unavailable gate: stopped

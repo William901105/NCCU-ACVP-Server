@@ -51,10 +51,12 @@ only and are not exposed by production endpoints.
 
 ```text
 POST /acvp/v1/testSessions
-GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}
-POST /acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results
-GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results
+GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}
+POST /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}/results
+GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}/results
 GET  /acvp/v1/testSessions/{sessionId}/results
+PUT  /acvp/v1/testSessions/{sessionId}
+GET  /acvp/v1/requests/{requestId}
 ```
 
 The explicit generation endpoint remains available for a session created with
@@ -64,8 +66,14 @@ The explicit generation endpoint remains available for a session created with
 POST /acvp/v1/testSessions/{sessionId}/vectorSets/generate
 ```
 
-All normal `/acvp/v1` responses use an ACVP `acvVersion: 1.0` envelope. Obsolete
-workflow-selection or generation-selection query parameters return HTTP 400.
+Test-session registration and certification use a two-object ACVP
+`acvVersion: 1.0` envelope. Bare registration objects remain a deprecated local
+compatibility input. Numeric `vsId` is the canonical public vector identity;
+internal database UUIDs are not emitted. Certification creates a persistent
+request resource in `initial` status because this server is not connected to an
+external validation authority. It does not issue a certificate or validation
+ID. Obsolete workflow-selection or generation-selection query parameters
+return HTTP 400.
 
 ## NIST GenVal Adapter
 
@@ -124,9 +132,7 @@ registration, prompt, response, mapper, and NIST validation-normalization
 contracts.
 
 Frontend FIPS 203 workflows and a real ML-KEM IUT harness are not implemented.
-Full ML-KEM API E2E generation/upload/validation and live NIST pass/fail parity
-remain Stage 6 acceptance work. Mixed ML-DSA/ML-KEM sessions have not been
-formally supported or accepted.
+Mixed ML-DSA/ML-KEM sessions have not been formally supported or accepted.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
@@ -138,3 +144,5 @@ Stage 4 ML-KEM GenVal readiness evidence is recorded in
 [`docs/stages/stage4-mlkem-genval-readiness.md`](docs/stages/stage4-mlkem-genval-readiness.md).
 Stage 5 ML-KEM module details are recorded in
 [`docs/stages/stage5-mlkem-algorithm-module.md`](docs/stages/stage5-mlkem-algorithm-module.md).
+Stage 7 Priority-0 protocol remediation is recorded in
+[`docs/stages/stage7-nist-priority0-interoperability.md`](docs/stages/stage7-nist-priority0-interoperability.md).

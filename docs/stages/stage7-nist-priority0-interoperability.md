@@ -6,6 +6,11 @@ acceptance-test freeze is `bbcddee7d798604c4229f960742e67d80157bb77`.
 This stage remediates only Stage 6 findings F-01, F-02, and F-03. It is not a
 claim of complete ACVP conformance or NIST/CAVP certification.
 
+Pre-merge hardening requires module and OE resource references to contain
+exactly one opaque path segment, explicitly tests rejection of duplicate
+public `vsId` values in a legacy session, and labels `bbcddee7d798604c4229f960742e67d80157bb77`
+as the code/test freeze rather than a self-referential final feature commit.
+
 ## Official References
 
 - Rendered ML-KEM draft: `draft-celi-acvp-ml-kem-01`, published 2026-04-16,

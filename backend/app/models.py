@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 JsonObject = Union[Dict[str, Any], List[Any]]
+_ACVP_RESOURCE_URL_PATTERN = re.compile(
+    r"^/acvp/v1/(?P<collection>[^/?#]+)/(?P<identifier>[^/?#]+)$"
+)
+
+
+def _validate_acvp_resource_url(value: str, *, collection: str) -> str:
+    match = _ACVP_RESOURCE_URL_PATTERN.fullmatch(value)
+    if match is None or match.group("collection") != collection:
+        raise ValueError(
+            f"must identify an /acvp/v1/{collection}/{{id}} resource"
+        )
+    return value
 
 
 class AcvpV1TestSessionCreateRequest(BaseModel):
@@ -80,13 +93,9 @@ class AcvpV1TestSessionCertificationRequest(BaseModel):
     @field_validator("moduleUrl")
     @classmethod
     def validate_module_url(cls, value: str) -> str:
-        if not value.startswith("/acvp/v1/modules/") or value.endswith("/"):
-            raise ValueError("must identify an /acvp/v1/modules/{id} resource")
-        return value
+        return _validate_acvp_resource_url(value, collection="modules")
 
     @field_validator("oeUrl")
     @classmethod
     def validate_oe_url(cls, value: str) -> str:
-        if not value.startswith("/acvp/v1/oes/") or value.endswith("/"):
-            raise ValueError("must identify an /acvp/v1/oes/{id} resource")
-        return value
+        return _validate_acvp_resource_url(value, collection="oes")

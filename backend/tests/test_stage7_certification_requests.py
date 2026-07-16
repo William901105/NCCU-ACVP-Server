@@ -83,6 +83,62 @@ def test_all_pass_session_can_put_certification_and_poll_persistently(
         assert body(restarted_client.get(request_resource["url"])) == request_resource
 
 
+def test_certification_accepts_opaque_single_segment_resource_ids(
+    monkeypatch: Any,
+    tmp_path: Any,
+) -> None:
+    install_deterministic_genval(monkeypatch, tmp_path)
+    certification = {
+        **CERTIFICATION,
+        "moduleUrl": "/acvp/v1/modules/module-1",
+        "oeUrl": "/acvp/v1/oes/oe-1",
+    }
+    with TestClient(app) as client:
+        created = pass_session(client)
+        response = client.put(
+            f"/acvp/v1/testSessions/{created['testSessionId']}",
+            json=envelope(certification),
+        )
+
+    assert response.status_code == 200
+    assert body(response)["status"] == "initial"
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_url"),
+    [
+        ("moduleUrl", "/acvp/v1/modules/"),
+        ("moduleUrl", "/acvp/v1/modules/1/"),
+        ("moduleUrl", "/acvp/v1/modules/1/extra"),
+        ("moduleUrl", "/acvp/v1/modules/1?query=true"),
+        ("moduleUrl", "/acvp/v1/modules/1#fragment"),
+        ("moduleUrl", "/acvp/v1/modules//1"),
+        ("moduleUrl", "https://example.test/acvp/v1/modules/1"),
+        ("oeUrl", "/acvp/v1/oes/"),
+        ("oeUrl", "/acvp/v1/oes/1/"),
+        ("oeUrl", "/acvp/v1/oes/1/extra"),
+        ("oeUrl", "/acvp/v1/oes/1?query=true"),
+        ("oeUrl", "/acvp/v1/oes/1#fragment"),
+        ("oeUrl", "/acvp/v1/oes//1"),
+        ("oeUrl", "https://example.test/acvp/v1/oes/1"),
+    ],
+)
+def test_certification_rejects_non_resource_reference_urls(
+    field: str,
+    invalid_url: str,
+) -> None:
+    certification = {**CERTIFICATION, field: invalid_url}
+    with TestClient(app) as client:
+        created = create_session(client, auto_generate=False)
+        response = client.put(
+            f"/acvp/v1/testSessions/{created['testSessionId']}",
+            json=envelope(certification),
+        )
+
+    assert response.status_code == 400
+    assert error(response)["code"] == "INVALID_REQUEST"
+
+
 def test_certification_rejects_no_vectors_incomplete_and_failed_sessions(
     monkeypatch: Any,
     tmp_path: Any,

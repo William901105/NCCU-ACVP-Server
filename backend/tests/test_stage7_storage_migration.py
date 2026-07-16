@@ -65,6 +65,45 @@ def create_legacy_database(*, prompt: Any, extra: Any = None) -> tuple[str, str]
     return session_id, vector_id
 
 
+def insert_legacy_session(conn: sqlite3.Connection, session_id: str, vector_ids: list[str]) -> None:
+    now = "2026-01-01T00:00:00+00:00"
+    conn.execute(
+        """
+        INSERT INTO acvp_sessions (
+            test_session_id, label, status, vector_set_ids_json,
+            created_at, updated_at, extra_json
+        ) VALUES (?, NULL, 'vectorReady', ?, ?, ?, '{}')
+        """,
+        (session_id, json.dumps(vector_ids), now, now),
+    )
+
+
+def insert_legacy_vector(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str,
+    vector_id: str,
+    vs_id: int,
+) -> None:
+    now = "2026-01-01T00:00:00+00:00"
+    prompt = {
+        "vsId": vs_id,
+        "algorithm": "ML-KEM",
+        "mode": "keyGen",
+        "revision": "FIPS203",
+        "testGroups": [],
+    }
+    conn.execute(
+        """
+        INSERT INTO acvp_vector_sets (
+            vector_set_id, test_session_id, status, algorithm, mode, revision,
+            prompt_json, expected_results_json, created_at, updated_at, extra_json
+        ) VALUES (?, ?, 'vectorReady', 'ML-KEM', 'keyGen', 'FIPS203', ?, '{}', ?, ?, '{}')
+        """,
+        (vector_id, session_id, json.dumps(prompt), now, now),
+    )
+
+
 def test_stage6_database_is_migrated_additively_and_idempotently() -> None:
     session_id, vector_id = create_legacy_database(
         prompt={
@@ -117,3 +156,57 @@ def test_malformed_legacy_vector_record_fails_with_explicit_error() -> None:
     with pytest.raises(RuntimeError, match="valid numeric vsId") as exc_info:
         init_db()
     assert vector_id in str(exc_info.value)
+
+
+def test_legacy_duplicate_vs_ids_in_same_session_fail_migration() -> None:
+    path = get_db_path()
+    path.unlink(missing_ok=True)
+    session_id = "duplicate-session"
+    vector_ids = ["legacy-vector-one", "legacy-vector-two"]
+    with sqlite3.connect(str(path)) as conn:
+        conn.executescript(LEGACY_SCHEMA)
+        insert_legacy_session(conn, session_id, vector_ids)
+        for vector_id in vector_ids:
+            insert_legacy_vector(
+                conn,
+                session_id=session_id,
+                vector_id=vector_id,
+                vs_id=41,
+            )
+
+    with pytest.raises(RuntimeError, match="duplicate numeric vsId"):
+        init_db()
+
+    with sqlite3.connect(str(path)) as conn:
+        rows = conn.execute(
+            "SELECT vector_set_id, test_session_id, prompt_json FROM acvp_vector_sets"
+        ).fetchall()
+    assert {row[0] for row in rows} == set(vector_ids)
+    assert {row[1] for row in rows} == {session_id}
+    assert {json.loads(row[2])["vsId"] for row in rows} == {41}
+
+
+def test_legacy_same_vs_id_in_different_sessions_migrates() -> None:
+    path = get_db_path()
+    path.unlink(missing_ok=True)
+    records = [
+        ("legacy-session-one", "legacy-vector-one"),
+        ("legacy-session-two", "legacy-vector-two"),
+    ]
+    with sqlite3.connect(str(path)) as conn:
+        conn.executescript(LEGACY_SCHEMA)
+        for session_id, vector_id in records:
+            insert_legacy_session(conn, session_id, [vector_id])
+            insert_legacy_vector(
+                conn,
+                session_id=session_id,
+                vector_id=vector_id,
+                vs_id=41,
+            )
+
+    init_db()
+
+    for session_id, vector_id in records:
+        vector = get_acvp_vector_set_by_vs_id(session_id, 41)
+        assert vector is not None
+        assert vector["vectorSetId"] == vector_id

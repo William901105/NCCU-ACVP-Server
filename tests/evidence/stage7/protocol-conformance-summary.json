@@ -1,0 +1,32 @@
+{
+  "scope": "NIST Priority-0 protocol interoperability remediation only",
+  "officialReference": {
+    "repository": "https://github.com/usnistgov/ACVP",
+    "commit": "178fe4085b0bffc4f8b94433c965229623dc3bc7",
+    "renderedMlKemDraft": "draft-celi-acvp-ml-kem-01",
+    "priorityZeroChangedSinceStage6": false
+  },
+  "findings": {
+    "F-01": {
+      "status": "remediated",
+      "contract": "canonical certification PUT creates a persistent initial request resource",
+      "externalApproval": false
+    },
+    "F-02": {
+      "status": "remediated",
+      "contract": "canonical two-object acvVersion 1.0 registration envelope"
+    },
+    "F-03": {
+      "status": "remediated",
+      "contract": "numeric vsId is the session-scoped canonical public vector identity"
+    }
+  },
+  "deferred": ["F-04", "F-05", "F-06", "F-07", "F-08", "F-09"],
+  "negativeClaims": {
+    "fullNistProtocolConformance": false,
+    "nistOrCavpCertification": false,
+    "certificateIssuance": false,
+    "fakeValidationId": false,
+    "localGenValFallback": false
+  }
+}

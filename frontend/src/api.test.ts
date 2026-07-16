@@ -1,0 +1,171 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  ApiError,
+  certifyAcvpSession,
+  createAcvpSession,
+  getAcvpExpectedResults,
+  getAcvpRequest,
+  getAcvpSessionResults,
+  getAcvpVectorSetPrompt,
+  getAcvpVectorSetResults,
+  listAcvpSessions,
+  submitAcvpVectorSetResults
+} from "./api";
+import type { JsonValue } from "./types";
+
+const VERSION = { acvVersion: "1.0" };
+const fetchMock = vi.fn<typeof fetch>();
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+function lastRequest(): RequestInit {
+  return fetchMock.mock.calls[fetchMock.mock.calls.length - 1]?.[1] ?? {};
+}
+
+function requestBody(): unknown {
+  return JSON.parse(String(lastRequest().body)) as unknown;
+}
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("ACVP API", () => {
+  it("creates sessions with a canonical envelope rather than a bare body", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([VERSION, { testSessionId: "session-1", status: "created", vectorSetIds: [] }])
+    );
+    const registration = { algorithms: [{ algorithm: "ML-KEM", mode: "keyGen" }] };
+
+    await createAcvpSession(registration);
+
+    expect(lastRequest().method).toBe("POST");
+    expect(requestBody()).toEqual([VERSION, registration]);
+    expect(requestBody()).not.toEqual(registration);
+  });
+
+  it("wraps a raw IUT response in a canonical envelope and uses numeric vsId", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const response = { vsId: 42, testGroups: [] };
+
+    await submitAcvpVectorSetResults("session-1", 42, response);
+
+    expect(fetchMock.mock.calls[0][0]).toContain(
+      "/acvp/v1/testSessions/session-1/vectorSets/42/results"
+    );
+    expect(requestBody()).toEqual([VERSION, response]);
+  });
+
+  it("does not double-wrap an enveloped IUT response", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const response: JsonValue = [VERSION, { vsId: 7, testGroups: [] }];
+
+    await submitAcvpVectorSetResults("session-1", 7, response);
+
+    expect(requestBody()).toEqual(response);
+    expect(requestBody()).toHaveLength(2);
+  });
+
+  it("handles an empty 204 result submission", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(
+      submitAcvpVectorSetResults("session-1", 3, { vsId: 3, testGroups: [] })
+    ).resolves.toBeUndefined();
+  });
+
+  it("submits certification with PUT and a canonical envelope", async () => {
+    const resource = { url: "/acvp/v1/requests/5", status: "initial", message: "Pending" };
+    fetchMock.mockResolvedValueOnce(jsonResponse([VERSION, resource]));
+    const certification = {
+      moduleUrl: "/acvp/v1/modules/1",
+      oeUrl: "/acvp/v1/oes/1",
+      algorithmPrerequisites: []
+    };
+
+    const result = await certifyAcvpSession("session-1", certification);
+
+    expect(lastRequest().method).toBe("PUT");
+    expect(requestBody()).toEqual([VERSION, certification]);
+    expect(result.raw).toEqual([VERSION, resource]);
+  });
+
+  it("only polls strict relative numeric request URLs", async () => {
+    await expect(getAcvpRequest("https://example.test/acvp/v1/requests/5")).rejects.toMatchObject({
+      code: "INVALID_REQUEST_URL",
+      status: 400
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const resource = { url: "/acvp/v1/requests/5", status: "processing" };
+    fetchMock.mockResolvedValueOnce(jsonResponse([VERSION, resource]));
+    await expect(getAcvpRequest(resource.url)).resolves.toMatchObject(resource);
+    expect(fetchMock.mock.calls[0][0]).toContain("/acvp/v1/requests/5");
+  });
+
+  it("preserves raw prompt and expected envelopes", async () => {
+    const prompt = { vsId: 9, algorithm: "ML-KEM", mode: "keyGen", testGroups: [] };
+    const expected = { ...prompt, testGroups: [{ tgId: 1, tests: [] }] };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse([VERSION, prompt]))
+      .mockResolvedValueOnce(jsonResponse([VERSION, expected]));
+
+    const promptView = await getAcvpVectorSetPrompt("session-1", 9);
+    const expectedView = await getAcvpExpectedResults("session-1", 9);
+
+    expect(promptView.raw).toEqual([VERSION, prompt]);
+    expect(expectedView.raw).toEqual([VERSION, expected]);
+    expect(promptView.prompt).toEqual(prompt);
+    expect(expectedView.expectedResults).toEqual(expected);
+  });
+
+  it("preserves raw vector and session result envelopes", async () => {
+    const vectorResults = { results: { disposition: "passed", tests: [] } };
+    const sessionResults = { passed: true, results: [] };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse([VERSION, vectorResults]))
+      .mockResolvedValueOnce(jsonResponse([VERSION, sessionResults]));
+
+    const vectorView = await getAcvpVectorSetResults("session-1", 11);
+    const sessionView = await getAcvpSessionResults("session-1");
+
+    expect(vectorView.raw).toEqual([VERSION, vectorResults]);
+    expect(sessionView.raw).toEqual([VERSION, sessionResults]);
+  });
+
+  it("parses structured canonical ACVP errors", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        [
+          VERSION,
+          {
+            error: {
+              code: "NIST_GENVAL_EXECUTION_ERROR",
+              message: "NIST GenVal execution failed.",
+              path: "/acvp/v1/testSessions/session-1/vectorSets/1/results"
+            }
+          }
+        ],
+        500
+      )
+    );
+
+    const error = await listAcvpSessions().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 500,
+      code: "NIST_GENVAL_EXECUTION_ERROR",
+      message: "NIST GenVal execution failed.",
+      path: "/acvp/v1/testSessions/session-1/vectorSets/1/results"
+    });
+  });
+});

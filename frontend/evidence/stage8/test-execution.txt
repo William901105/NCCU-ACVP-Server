@@ -1,0 +1,55 @@
+Stage 8 frontend verification
+=============================
+
+Stage 8 base strict SHA
+  d6e27208d9fb40553abe432d5dfb421032a07c70
+
+npm ci
+  PASS
+  104 packages installed; 105 packages audited in 3s (npm-reported).
+  Audit: 2 advisories (1 moderate, 1 high), both in the existing Vite 5/esbuild toolchain.
+  Vitest 3.2.7 introduced no additional reported advisory.
+  No npm audit fix command was run.
+
+npm test
+  PASS
+  Vitest 3.2.7
+  3 test files passed
+  22 tests passed
+  Duration: 750ms
+
+npm run build
+  PASS
+  TypeScript noEmit check passed.
+  Vite transformed 36 modules.
+  Output: index HTML, JavaScript, and CSS assets.
+  Vite build duration: 1.02s
+
+preview smoke
+  PASS
+  Preview URL: http://127.0.0.1:5173/
+  Index: HTTP 200
+  JavaScript asset: HTTP 200, 165949 bytes
+  CSS asset: HTTP 200, 8771 bytes
+  Bundle contained the FIPS 203 selector, ACVP heading, prompt download, and certification panel.
+  No immediate build or runtime syntax failure was observed.
+  Preview server was stopped after the smoke test.
+
+backend pytest
+  PASS
+  226 tests collected
+  222 passed, 4 skipped
+  Duration: 145.55s (0:02:25)
+  No live GenVal flag, Orleans service, or GenVal rebuild was used.
+  The system PATH had no pytest, so a requirements-compatible test environment was installed under /tmp.
+  Restricted sandbox networking blocked TestClient's local event-loop socketpair; the full suite passed in the approved execution environment.
+
+git diff --check
+  PASS
+  No whitespace errors.
+
+changed-path scope
+  PASS
+  All tracked Stage 8 changes are under frontend/**.
+  No backend, NIST GenVal, SQLite, fixture, root documentation, or Stage 6/7 file changed.
+  No dist, node_modules, coverage, .vite, or log artifact is tracked.

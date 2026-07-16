@@ -1,4 +1,11 @@
-import type { FipsVersionConfig } from "./types";
+import type { FipsVersionConfig, FipsVersionId, MlKemFunction } from "./types";
+
+export const ML_KEM_FUNCTIONS: MlKemFunction[] = [
+  "encapsulation",
+  "decapsulation",
+  "encapsulationKeyCheck",
+  "decapsulationKeyCheck"
+];
 
 export const FIPS_REGISTRY: FipsVersionConfig[] = [
   {
@@ -13,6 +20,7 @@ export const FIPS_REGISTRY: FipsVersionConfig[] = [
       { id: "sigGen", label: "sigGen", enabled: true },
       { id: "sigVer", label: "sigVer", enabled: true }
     ],
+    defaultModes: ["keyGen"],
     parameterSets: ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
     defaultParameterSets: ["ML-DSA-44"],
     defaultHashAlgs: ["SHA2-256"]
@@ -22,15 +30,20 @@ export const FIPS_REGISTRY: FipsVersionConfig[] = [
     label: "FIPS 203 / ML-KEM",
     algorithm: "ML-KEM",
     revision: "FIPS203",
-    enabled: false,
-    status: "in-development",
-    disabledReason: "FIPS203 / ML-KEM backend is not merged yet.",
-    modes: [],
-    parameterSets: [],
-    defaultParameterSets: []
+    enabled: true,
+    status: "available",
+    modes: [
+      { id: "keyGen", label: "keyGen", enabled: true },
+      { id: "encapDecap", label: "encapDecap", enabled: true }
+    ],
+    defaultModes: ["keyGen"],
+    parameterSets: ["ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"],
+    defaultParameterSets: ["ML-KEM-512"],
+    functions: [...ML_KEM_FUNCTIONS],
+    defaultFunctions: [...ML_KEM_FUNCTIONS]
   }
 ];
 
-export function getFipsConfig(id: string): FipsVersionConfig {
+export function getFipsConfig(id: FipsVersionId | string): FipsVersionConfig {
   return FIPS_REGISTRY.find((item) => item.id === id) ?? FIPS_REGISTRY[0];
 }

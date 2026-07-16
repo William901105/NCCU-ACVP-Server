@@ -1,14 +1,15 @@
+import { acvpEnvelope, isAcvpEnvelope, isAcvpRequestUrl, unwrapAcvpEnvelope } from "./acvp";
 import type {
-  AcvpEnvelope,
-  AcvpExpectedPayload,
+  AcvpCertificationRequest,
+  AcvpRequestResource,
   AcvpSessionDetail,
+  AcvpSessionRegistration,
   AcvpSessionSummary,
   AcvpStrictSessionResultItem,
-  AcvpStrictVectorSetResultTest,
   AcvpStrictVectorSetResults,
+  AcvpVectorSetId,
   AcvpVectorSetPayload,
   AcvpVectorSetSummary,
-  JsonObject,
   JsonValue,
   NormalizedExpectedView,
   NormalizedSessionResultsView,
@@ -20,10 +21,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0
 
 interface RequestOptions extends RequestInit {
   preserveAcvpEnvelope?: boolean;
-}
-
-export interface AcvpClientOptions {
-  isSample?: boolean;
 }
 
 export class ApiError extends Error {
@@ -42,22 +39,6 @@ export class ApiError extends Error {
   }
 }
 
-export function isAcvpEnvelope(payload: unknown): payload is AcvpEnvelope<unknown> {
-  return (
-    Array.isArray(payload) &&
-    payload.length >= 2 &&
-    isRecord(payload[0]) &&
-    typeof payload[0].acvVersion === "string"
-  );
-}
-
-export function unwrapAcvpEnvelope<T>(payload: unknown): T {
-  if (isAcvpEnvelope(payload)) {
-    return payload[1] as T;
-  }
-  return payload as T;
-}
-
 async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const payload = await requestMaybeJson<T>(path, options);
   if (payload === undefined) {
@@ -70,61 +51,50 @@ export async function requestJson<T>(path: string, options?: RequestOptions): Pr
   return request<T>(path, options);
 }
 
-export async function requestMaybeJson<T>(path: string, options?: RequestOptions): Promise<T | undefined> {
+export async function requestMaybeJson<T>(
+  path: string,
+  options?: RequestOptions
+): Promise<T | undefined> {
+  const { preserveAcvpEnvelope = false, ...requestOptions } = options ?? {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...(options?.headers ?? {})
+      ...(requestOptions.headers ?? {})
     },
-    ...options
+    ...requestOptions
   });
-
   const payload = await parseResponsePayload(response);
-
   if (!response.ok) {
     throw buildApiError(response, payload);
   }
-
   if (payload === undefined) {
     return undefined;
   }
-
-  if (options?.preserveAcvpEnvelope) {
-    return payload as T;
-  }
-
-  return unwrapAcvpEnvelope<T>(payload);
+  return (preserveAcvpEnvelope ? payload : unwrapAcvpEnvelope(payload)) as T;
 }
 
-export async function requestNoContentAware<T>(path: string, options?: RequestOptions): Promise<T | undefined> {
-  return requestMaybeJson<T>(path, options);
-}
-
-export async function listAcvpSessions(options: AcvpClientOptions = {}, status?: string): Promise<AcvpSessionSummary[]> {
+export async function listAcvpSessions(status?: string): Promise<AcvpSessionSummary[]> {
   const payload = await request<{ testSessions: AcvpSessionSummary[] }>(
     withQuery("/acvp/v1/testSessions", { status })
   );
   return payload.testSessions;
 }
 
-export async function createAcvpSession(payload: JsonValue, options: AcvpClientOptions = {}): Promise<AcvpSessionDetail> {
-  const body = mergeSessionOptions(payload, options);
-  return request<AcvpSessionDetail>(
-    "/acvp/v1/testSessions",
-    {
-      method: "POST",
-      body: JSON.stringify(body)
-    }
-  );
+export async function createAcvpSession(
+  registration: AcvpSessionRegistration
+): Promise<AcvpSessionDetail> {
+  return request<AcvpSessionDetail>("/acvp/v1/testSessions", {
+    method: "POST",
+    body: JSON.stringify(acvpEnvelope(registration))
+  });
 }
 
-export async function getAcvpSession(sessionId: string, options: AcvpClientOptions = {}): Promise<AcvpSessionDetail> {
+export async function getAcvpSession(sessionId: string): Promise<AcvpSessionDetail> {
   return request<AcvpSessionDetail>(`/acvp/v1/testSessions/${encodeURIComponent(sessionId)}`);
 }
 
 export async function getAcvpSessionVectorSets(
-  sessionId: string,
-  options: AcvpClientOptions = {}
+  sessionId: string
 ): Promise<AcvpVectorSetSummary[]> {
   const payload = await request<{ vectorSets: AcvpVectorSetSummary[] }>(
     `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets`
@@ -134,75 +104,92 @@ export async function getAcvpSessionVectorSets(
 
 export async function getAcvpVectorSetPrompt(
   sessionId: string,
-  vectorSetId: string,
-  options: AcvpClientOptions = {}
+  vsId: AcvpVectorSetId
 ): Promise<NormalizedVectorSetView> {
-  const payload = await requestJson<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}`
-  );
-  return normalizeVectorSetPrompt(payload, sessionId, vectorSetId);
+  const payload = await requestJson<unknown>(vectorPath(sessionId, vsId), {
+    preserveAcvpEnvelope: true
+  });
+  return normalizeVectorSetPrompt(payload, sessionId, vsId);
 }
 
 export async function getAcvpExpectedResults(
   sessionId: string,
-  vectorSetId: string,
-  options: AcvpClientOptions = {}
+  vsId: AcvpVectorSetId
 ): Promise<NormalizedExpectedView> {
-  const payload = await requestJson<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/expected`
-  );
+  const payload = await requestJson<unknown>(`${vectorPath(sessionId, vsId)}/expected`, {
+    preserveAcvpEnvelope: true
+  });
   return normalizeExpectedResults(payload);
 }
 
 export async function submitAcvpVectorSetResults(
   sessionId: string,
-  vectorSetId: string,
-  response: JsonValue,
-  options: AcvpClientOptions = {}
+  vsId: AcvpVectorSetId,
+  response: JsonValue
 ): Promise<NormalizedVectorSetResultView | undefined> {
-  const body = isAcvpEnvelope(response) ? response : { response };
-  const payload = await requestNoContentAware<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`,
-    {
-      method: "POST",
-      body: JSON.stringify(body)
-    }
-  );
-
-  if (payload === undefined) {
-    return undefined;
+  if (!isAcvpEnvelope(response) && !isRecord(response)) {
+    throw new Error("IUT response JSON must be an object or canonical ACVP envelope.");
   }
-
-  return normalizeVectorSetResults(payload);
+  const body = isAcvpEnvelope(response) ? response : acvpEnvelope(response);
+  const payload = await requestMaybeJson<unknown>(`${vectorPath(sessionId, vsId)}/results`, {
+    method: "POST",
+    body: JSON.stringify(body),
+    preserveAcvpEnvelope: true
+  });
+  return payload === undefined ? undefined : normalizeVectorSetResults(payload);
 }
 
 export async function getAcvpVectorSetResults(
   sessionId: string,
-  vectorSetId: string,
-  options: AcvpClientOptions = {}
+  vsId: AcvpVectorSetId
 ): Promise<NormalizedVectorSetResultView> {
-  const payload = await requestJson<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${encodeURIComponent(vectorSetId)}/results`
-  );
+  const payload = await requestJson<unknown>(`${vectorPath(sessionId, vsId)}/results`, {
+    preserveAcvpEnvelope: true
+  });
   return normalizeVectorSetResults(payload);
 }
 
 export async function getAcvpSessionResults(
-  sessionId: string,
-  options: AcvpClientOptions = {}
+  sessionId: string
 ): Promise<NormalizedSessionResultsView> {
   const payload = await requestJson<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/results`
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/results`,
+    { preserveAcvpEnvelope: true }
   );
   return normalizeSessionResults(payload);
 }
 
+export async function certifyAcvpSession(
+  sessionId: string,
+  certification: AcvpCertificationRequest
+): Promise<AcvpRequestResource> {
+  const payload = await requestJson<unknown>(
+    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(acvpEnvelope(certification)),
+      preserveAcvpEnvelope: true
+    }
+  );
+  return normalizeRequestResource(payload);
+}
+
+export async function getAcvpRequest(requestUrl: string): Promise<AcvpRequestResource> {
+  if (!isAcvpRequestUrl(requestUrl)) {
+    throw new ApiError(
+      "Request resource URL must match /acvp/v1/requests/{numericId}.",
+      400,
+      undefined,
+      "INVALID_REQUEST_URL",
+      requestUrl
+    );
+  }
+  const payload = await requestJson<unknown>(requestUrl, { preserveAcvpEnvelope: true });
+  return normalizeRequestResource(payload);
+}
+
 export function expectedDeniedView(reason: string): NormalizedExpectedView {
-  return {
-    available: false,
-    denied: true,
-    reason
-  };
+  return { available: false, denied: true, reason };
 }
 
 async function parseResponsePayload(response: Response): Promise<unknown | undefined> {
@@ -223,26 +210,27 @@ async function parseResponsePayload(response: Response): Promise<unknown | undef
 function buildApiError(response: Response, payload: unknown): ApiError {
   const body = unwrapAcvpEnvelope<unknown>(payload);
   const detail = extractErrorDetail(body);
-  return new ApiError(detail.message || response.statusText, response.status, payload, detail.code, detail.path);
+  return new ApiError(
+    detail.message || response.statusText,
+    response.status,
+    payload,
+    detail.code,
+    detail.path
+  );
 }
 
 function extractErrorDetail(payload: unknown): { message: string; code?: string; path?: string } {
   if (isRecord(payload)) {
     const error = payload.error;
     if (isRecord(error)) {
-      const message = stringValue(error.message) ?? stringValue(error.detail) ?? "Request failed.";
       return {
-        message,
+        message: stringValue(error.message) ?? stringValue(error.detail) ?? "Request failed.",
         code: stringValue(error.code),
         path: stringValue(error.path)
       };
     }
-    const detail = payload.detail;
-    if (typeof detail === "string") {
-      return { message: detail };
-    }
-    if (detail !== undefined) {
-      return { message: JSON.stringify(detail) };
+    if (typeof payload.detail === "string") {
+      return { message: payload.detail };
     }
     const message = stringValue(payload.message);
     if (message) {
@@ -253,13 +241,17 @@ function extractErrorDetail(payload: unknown): { message: string; code?: string;
       };
     }
   }
-  if (typeof payload === "string") {
-    return { message: payload };
-  }
-  return { message: "Request failed." };
+  return { message: typeof payload === "string" ? payload : "Request failed." };
 }
 
-function withQuery(path: string, params: Record<string, string | number | boolean | undefined | null>): string {
+function vectorPath(sessionId: string, vsId: AcvpVectorSetId): string {
+  return `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/vectorSets/${vsId}`;
+}
+
+function withQuery(
+  path: string,
+  params: Record<string, string | number | boolean | undefined | null>
+): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") {
@@ -270,30 +262,23 @@ function withQuery(path: string, params: Record<string, string | number | boolea
   return queryString ? `${path}?${queryString}` : path;
 }
 
-function mergeSessionOptions(payload: JsonValue, options: AcvpClientOptions): JsonValue {
-  if (!isRecord(payload) || Array.isArray(payload)) {
-    return payload;
-  }
-  const body: Record<string, JsonValue> = { ...(payload as JsonObject) };
-  if (options.isSample !== undefined) {
-    body.isSample = options.isSample;
-  }
-  return body;
-}
-
-function normalizeVectorSetPrompt(payload: unknown, sessionId: string, vectorSetId: string): NormalizedVectorSetView {
+function normalizeVectorSetPrompt(
+  payload: unknown,
+  sessionId: string,
+  vsId: AcvpVectorSetId
+): NormalizedVectorSetView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (isVectorSetPayload(body)) {
-    return {
-      vectorSetId,
-      sessionId,
-      status: stringValue(isRecord(body) ? body.status : undefined),
-      prompt: body,
-      raw: payload,
-      sourceShape: "strict-payload"
-    };
+  if (!isVectorSetPayload(body)) {
+    throw new Error("Vector set response did not contain an ACVP prompt payload.");
   }
-  throw new Error("Vector set response did not contain an ACVP prompt payload.");
+  return {
+    vectorSetId: vsId,
+    sessionId,
+    status: stringValue(body.status),
+    prompt: body,
+    raw: payload,
+    sourceShape: "strict-payload"
+  };
 }
 
 function normalizeExpectedResults(payload: unknown): NormalizedExpectedView {
@@ -318,32 +303,44 @@ function normalizeExpectedResults(payload: unknown): NormalizedExpectedView {
 function normalizeVectorSetResults(payload: unknown): NormalizedVectorSetResultView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
   const strictResults = extractStrictVectorSetResults(body);
-  if (strictResults) {
-    return {
-      disposition: strictResults.results.disposition,
-      tests: strictResults.results.tests,
-      raw: payload,
-      acvpResults: strictResults,
-      sourceShape: "strict-payload",
-      status: isRecord(body) ? stringValue(body.status) : undefined
-    };
+  if (!strictResults) {
+    throw new Error("Vector set results response did not contain a recognizable result body.");
   }
-
-  throw new Error("Vector set results response did not contain a recognizable result body.");
+  return {
+    disposition: strictResults.results.disposition,
+    tests: strictResults.results.tests,
+    raw: payload,
+    acvpResults: strictResults,
+    sourceShape: "strict-payload",
+    status: isRecord(body) ? stringValue(body.status) : undefined
+  };
 }
 
 function normalizeSessionResults(payload: unknown): NormalizedSessionResultsView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (isStrictSessionResults(body)) {
-    return {
-      passed: body.passed,
-      results: body.results,
-      raw: payload,
-      sourceShape: "strict-payload"
-    };
+  if (!isStrictSessionResults(body)) {
+    throw new Error("Test session results response did not contain a recognizable result body.");
   }
+  return {
+    passed: body.passed,
+    results: body.results,
+    raw: payload,
+    sourceShape: "strict-payload"
+  };
+}
 
-  throw new Error("Test session results response did not contain a recognizable result body.");
+function normalizeRequestResource(payload: unknown): AcvpRequestResource {
+  const body = unwrapAcvpEnvelope<unknown>(payload);
+  if (!isRecord(body) || typeof body.url !== "string" || typeof body.status !== "string") {
+    throw new Error("ACVP request response did not contain a request resource.");
+  }
+  return {
+    url: body.url,
+    status: body.status,
+    message: stringValue(body.message),
+    approvedUrl: stringValue(body.approvedUrl),
+    raw: payload
+  };
 }
 
 function extractStrictVectorSetResults(payload: unknown): AcvpStrictVectorSetResults | undefined {
@@ -353,14 +350,15 @@ function extractStrictVectorSetResults(payload: unknown): AcvpStrictVectorSetRes
   if (isStrictVectorSetResults(payload)) {
     return payload;
   }
-  if (isStrictVectorSetResults(payload.acvpResults)) {
-    return payload.acvpResults;
-  }
-  return undefined;
+  return isStrictVectorSetResults(payload.acvpResults) ? payload.acvpResults : undefined;
 }
 
 function isVectorSetPayload(value: unknown): value is AcvpVectorSetPayload {
-  return isRecord(value) && Array.isArray(value.testGroups);
+  return (
+    isRecord(value) &&
+    Array.isArray(value.testGroups) &&
+    (value.vsId === undefined || typeof value.vsId === "number")
+  );
 }
 
 function isStrictVectorSetResults(value: unknown): value is AcvpStrictVectorSetResults {
@@ -372,7 +370,9 @@ function isStrictVectorSetResults(value: unknown): value is AcvpStrictVectorSetR
   );
 }
 
-function isStrictSessionResults(value: unknown): value is { passed: boolean; results: AcvpStrictSessionResultItem[] } {
+function isStrictSessionResults(
+  value: unknown
+): value is { passed: boolean; results: AcvpStrictSessionResultItem[] } {
   return isRecord(value) && typeof value.passed === "boolean" && Array.isArray(value.results);
 }
 

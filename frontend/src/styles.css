@@ -13,6 +13,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
 }
 
 button,
@@ -133,6 +134,25 @@ select {
   color: #57320d;
   padding: 10px 12px;
   font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.notice.error {
+  border-left-color: #a3332d;
+  background: #fff1f0;
+  color: #7d211c;
+}
+
+.notice.success {
+  border-left-color: #168052;
+  background: #eef9f2;
+  color: #0f5b3a;
+}
+
+.notice.info {
+  border-left-color: #315ba5;
+  background: #eef3ff;
+  color: #243b76;
 }
 
 .workflow-grid {
@@ -154,6 +174,10 @@ select {
 
 .wide-panel {
   grid-column: span 2;
+}
+
+.certification-panel {
+  grid-column: 1 / -1;
 }
 
 .stack {
@@ -270,6 +294,23 @@ select {
   gap: 6px;
 }
 
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #25313f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.checkbox-field input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #243b76;
+}
+
 .field > span,
 .control-group > span {
   color: #52616a;
@@ -307,6 +348,25 @@ select {
 
 .segmented button {
   min-height: 32px;
+}
+
+.algorithm-selector button {
+  flex: 1 1 180px;
+}
+
+.function-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.function-option {
+  min-height: 36px;
+  border: 1px solid #d8e0e2;
+  border-radius: 6px;
+  background: #f9fbfb;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
 }
 
 .segmented.fixed button {
@@ -376,6 +436,7 @@ select {
   background: #f9fbfb;
   color: #17212b;
   text-align: left;
+  padding: 8px 10px;
 }
 
 .session-row span {
@@ -404,6 +465,23 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
+}
+
+.certification-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.certification-disclaimer {
+  margin: 0;
+  border-left: 4px solid #b86523;
+  background: #fff7e8;
+  color: #57320d;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .metadata-grid div,
@@ -622,6 +700,7 @@ select {
 
   .workflow-grid,
   .metadata-grid,
+  .certification-grid,
   .summary-strip,
   .result-row,
   .session-result-item {
@@ -630,6 +709,18 @@ select {
 
   .wide-panel {
     grid-column: auto;
+  }
+
+  .certification-panel {
+    grid-column: auto;
+  }
+
+  .function-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .algorithm-selector button {
+    flex-basis: 100%;
   }
 
   .field.short {

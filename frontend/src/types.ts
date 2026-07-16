@@ -8,7 +8,9 @@ export type JsonValue =
 
 export type JsonObject = Record<string, JsonValue>;
 
-export type AcvpEnvelope<T> = [{ acvVersion: string }, T];
+export type AcvpVersion = "1.0";
+export type AcvpEnvelope<T> = [{ acvVersion: AcvpVersion }, T];
+export type AcvpVectorSetId = number;
 
 export interface AcvpTestCase {
   tcId: number | string;
@@ -24,16 +26,25 @@ export interface AcvpTestGroup {
 }
 
 export interface AcvpVectorSet {
-  vsId?: number | string;
+  vsId?: AcvpVectorSetId;
   algorithm?: string;
   mode?: string;
   revision?: string;
+  isSample?: boolean;
   testGroups: AcvpTestGroup[];
   [key: string]: JsonValue | AcvpTestGroup[] | undefined;
 }
 
 export type FipsVersionId = "FIPS203" | "FIPS204";
-export type CapabilityMode = "keyGen" | "sigGen" | "sigVer";
+export type CapabilityMode = "keyGen" | "sigGen" | "sigVer" | "encapDecap";
+export type MlKemFunction =
+  | "encapsulation"
+  | "decapsulation"
+  | "encapsulationKeyCheck"
+  | "decapsulationKeyCheck";
+export type MldsaParameterSet = "ML-DSA-44" | "ML-DSA-65" | "ML-DSA-87";
+export type MlKemParameterSet = "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024";
+export type AcvpParameterSet = MldsaParameterSet | MlKemParameterSet;
 
 export interface CapabilityModeConfig {
   id: CapabilityMode;
@@ -44,22 +55,35 @@ export interface CapabilityModeConfig {
 export interface FipsVersionConfig {
   id: FipsVersionId;
   label: string;
-  algorithm: string;
-  revision: string;
+  algorithm: "ML-DSA" | "ML-KEM";
+  revision: FipsVersionId;
   enabled: boolean;
   status: "available" | "in-development";
   disabledReason?: string;
   modes: CapabilityModeConfig[];
-  parameterSets: string[];
-  defaultParameterSets: string[];
+  defaultModes: CapabilityMode[];
+  parameterSets: AcvpParameterSet[];
+  defaultParameterSets: AcvpParameterSet[];
+  functions?: MlKemFunction[];
+  defaultFunctions?: MlKemFunction[];
   defaultHashAlgs?: string[];
+}
+
+export interface AcvpSessionRegistration {
+  algorithms: JsonObject[];
+  label?: string;
+  isSample?: boolean;
+  autoGenerateVectorSets?: boolean;
+  testsPerGroup?: number;
+  campaignSeed?: string;
 }
 
 export interface AcvpSessionSummary {
   testSessionId: string;
   status: string;
   label?: string | null;
-  vectorSetIds: string[];
+  vectorSetIds: AcvpVectorSetId[];
+  vsIds?: AcvpVectorSetId[];
   vectorSetUrls: string[];
   vectorSetCount: number;
   mode?: string | null;
@@ -70,6 +94,8 @@ export interface AcvpSessionSummary {
   workflowPolicy?: "strict";
   executionBackend?: "nist-genval";
   isSample?: boolean;
+  passed?: boolean;
+  publishable?: boolean;
   provider?: string | null;
   providerName?: string | null;
   [key: string]: unknown;
@@ -82,14 +108,15 @@ export interface AcvpSessionDetail extends AcvpSessionSummary {
 }
 
 export interface AcvpVectorSetSummary {
-  vectorSetId: string;
+  vectorSetId: AcvpVectorSetId;
+  vsId: AcvpVectorSetId;
   testSessionId: string;
   status: string;
   url: string;
   mode?: string | null;
-  vsId?: number | string | null;
   algorithm?: string | null;
   revision?: string | null;
+  isSample?: boolean;
   testGroupCount?: number;
   testCaseCount?: number;
   provider?: string | null;
@@ -114,7 +141,7 @@ export interface AcvpStrictVectorSetResultTest {
 }
 
 export interface AcvpStrictVectorSetResultsBody {
-  vsId?: number | string;
+  vsId?: AcvpVectorSetId;
   disposition: string;
   tests: AcvpStrictVectorSetResultTest[];
   [key: string]: JsonValue | AcvpStrictVectorSetResultTest[] | undefined;
@@ -131,10 +158,35 @@ export interface AcvpStrictSessionResultItem {
   [key: string]: JsonValue | undefined;
 }
 
+export interface AcvpCertificationPrerequisite {
+  algorithm: string;
+  validationId: string;
+}
+
+export interface AcvpCertificationAlgorithmPrerequisites {
+  algorithm: string;
+  mode?: string;
+  prerequisites: AcvpCertificationPrerequisite[];
+}
+
+export interface AcvpCertificationRequest {
+  moduleUrl: string;
+  oeUrl: string;
+  algorithmPrerequisites: AcvpCertificationAlgorithmPrerequisites[];
+}
+
+export interface AcvpRequestResource {
+  url: string;
+  status: "initial" | "processing" | "approved" | "rejected" | string;
+  message?: string;
+  approvedUrl?: string;
+  raw?: unknown;
+}
+
 export type NormalizedSourceShape = "strict-payload";
 
 export interface NormalizedVectorSetView {
-  vectorSetId?: string;
+  vectorSetId?: AcvpVectorSetId;
   sessionId?: string;
   status?: string;
   prompt: AcvpVectorSetPayload;

@@ -43,9 +43,12 @@ The local oracle, validator, expected-result generator, import pipeline, and
 demo endpoints have been removed. Production runtime code has no local
 generation or validation fallback.
 
-`IUT-tests/mldsa-native/` is an external implementation-under-test harness; it
-is not a server oracle. The repository sample and NIST fixtures are test inputs
-only and are not exposed by production endpoints.
+`IUT-tests/mldsa-native/` (ML-DSA / FIPS 204) and `IUT-tests/mlkem-native/`
+(ML-KEM / FIPS 203) are external implementation-under-test harnesses; they are
+not server oracles. `mlkem-native` derives ACVP responses with the vendored
+GiacomoPope/kyber-py implementation in `third_party/kyber-py/` (provenance in
+`third_party/kyber-py/KYBER_SOURCE.md`). The repository sample and NIST fixtures
+are test inputs only and are not exposed by production endpoints.
 
 ## API Workflow
 
@@ -131,8 +134,10 @@ lists both immutable descriptors, and the ML-KEM module provides strict
 registration, prompt, response, mapper, and NIST validation-normalization
 contracts.
 
-Frontend FIPS 203 workflows and a real ML-KEM IUT harness are not implemented.
-Mixed ML-DSA/ML-KEM sessions have not been formally supported or accepted.
+Frontend FIPS 203 workflows are not implemented. The ML-KEM IUT harness is now
+implemented in `IUT-tests/mlkem-native/`, verified against the repository NIST
+FIPS 203 fixtures. Mixed ML-DSA/ML-KEM sessions have not been formally supported
+or accepted.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).

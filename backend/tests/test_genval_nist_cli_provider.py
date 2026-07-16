@@ -72,6 +72,29 @@ def test_validation_nonzero_exit_without_validation_json_still_raises(
     assert not stale_validation.exists()
 
 
+def test_timeout_with_byte_output_is_recorded_and_mapped(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    provider, work_dir, internal_projection, response = _provider_fixture(tmp_path)
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout=5,
+            output=b"partial stdout\n",
+            stderr=b"partial stderr\n",
+        )
+
+    monkeypatch.setattr(nist_cli_provider.shutil, "which", lambda _: "/usr/bin/dotnet")
+    monkeypatch.setattr(nist_cli_provider.subprocess, "run", fake_run)
+
+    with pytest.raises(GenValExecutionError, match="timed out after 5 seconds"):
+        provider.validate(internal_projection, response, work_dir)
+    assert (work_dir / "validation.stdout.txt").read_text(encoding="utf-8") == "partial stdout\n"
+    assert (work_dir / "validation.stderr.txt").read_text(encoding="utf-8") == "partial stderr\n"
+
+
 def _provider_fixture(
     tmp_path: Path,
 ) -> tuple[NistCliGenValProvider, Path, Path, Path]:

@@ -564,27 +564,27 @@ def _generate_and_store_vector_sets(
         )
     except AcvpSchemaError as exc:
         return acvp_error(500, exc.code, exc.message, exc.path)
-    except GenValConfigurationError as exc:
+    except GenValConfigurationError:
         return acvp_error(
             500,
             "NIST_GENVAL_NOT_READY",
-            str(exc),
+            "NIST GenVal is not configured or built.",
             "$",
             details=_nist_genval_error_details(),
         )
-    except GenValArtifactError as exc:
+    except GenValArtifactError:
         return acvp_error(
             500,
             "NIST_GENVAL_ARTIFACT_MISSING",
-            str(exc),
+            "A required NIST GenVal artifact is unavailable.",
             "$",
             details=_nist_genval_error_details(),
         )
-    except GenValExecutionError as exc:
+    except GenValExecutionError:
         return acvp_error(
             500,
             "NIST_GENVAL_EXECUTION_ERROR",
-            str(exc),
+            "NIST GenVal execution failed.",
             "$",
             details=_nist_genval_error_details(),
         )
@@ -799,12 +799,9 @@ def _nist_source_commit(project_root: Path) -> Optional[str]:
 
 
 def _nist_genval_error_details() -> Dict[str, Any]:
-    settings = get_genval_settings()
     return {
         "provider": NIST_GENVAL_PROVIDER_ID,
         "providerName": NIST_GENVAL_PROVIDER_NAME,
-        "runnerDll": str(settings.runner_dll),
-        "artifactRoot": str(settings.artifact_root),
         "buildCommand": "scripts/nist/build_nist_genval.sh",
         "orleansCommand": "scripts/nist/start_orleans.sh",
     }
@@ -1103,27 +1100,27 @@ def submit_vector_set_results(
         validation_result = _validate_with_nist_genval(vector_set, response, registry)
     except AcvpSchemaError as exc:
         return acvp_error(400, exc.code, exc.message, exc.path)
-    except GenValConfigurationError as exc:
+    except GenValConfigurationError:
         return acvp_error(
             500,
             "NIST_GENVAL_NOT_READY",
-            str(exc),
+            "NIST GenVal is not configured or built.",
             "$",
             details=_nist_genval_error_details(),
         )
-    except GenValArtifactError as exc:
+    except GenValArtifactError:
         return acvp_error(
             500,
             "NIST_GENVAL_ARTIFACT_MISSING",
-            str(exc),
+            "A required NIST GenVal artifact is unavailable.",
             "$",
             details=_nist_genval_error_details(),
         )
-    except GenValExecutionError as exc:
+    except GenValExecutionError:
         return acvp_error(
             500,
             "NIST_GENVAL_EXECUTION_ERROR",
-            str(exc),
+            "NIST GenVal execution failed.",
             "$",
             details=_nist_genval_error_details(),
         )

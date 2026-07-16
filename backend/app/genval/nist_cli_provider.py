@@ -89,8 +89,8 @@ class NistCliGenValProvider(GenValProvider):
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            stdout_path.write_text(exc.stdout or "", encoding="utf-8")
-            stderr_path.write_text(exc.stderr or "", encoding="utf-8")
+            stdout_path.write_text(_timeout_text(exc.stdout), encoding="utf-8")
+            stderr_path.write_text(_timeout_text(exc.stderr), encoding="utf-8")
             raise GenValExecutionError(
                 f"NIST GenValAppRunner timed out after {self.settings.timeout_seconds} seconds."
             ) from exc
@@ -117,3 +117,9 @@ def _require_file(path: Path) -> Path:
     if not path.exists():
         raise GenValArtifactError(f"Required NIST GenVal artifact is missing: {path}")
     return path
+
+
+def _timeout_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""

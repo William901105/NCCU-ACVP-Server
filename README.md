@@ -1,6 +1,7 @@
 # NCCU ACVP Server
 
-NCCU ACVP Server exposes a strict-only ACVP v1 workflow for FIPS 204 / ML-DSA.
+NCCU ACVP Server exposes a strict-only ACVP v1 workflow for FIPS 203 / ML-KEM
+and FIPS 204 / ML-DSA.
 
 ## Algorithm-neutral Core
 
@@ -11,9 +12,10 @@ mapping, and NIST validation normalization. The protocol layer dispatches by
 `AlgorithmIdentity` and does not import concrete algorithm packages.
 
 `GET /acvp/v1/algorithms` is generated entirely from registered descriptors.
-ML-DSA is currently the only production module, registered once during
-application startup with provider ID `nist-ml-dsa-fips204`. This architecture
-does not claim support for any additional algorithm or standard.
+ML-DSA and ML-KEM are registered once during application startup with provider
+IDs `nist-ml-dsa-fips204` and `nist-ml-kem-fips203`. The backend can dispatch
+registration, prompt, and response schemas and NIST registration mapping for
+both modules. NIST GenVal remains the only execution backend.
 
 ## Strict ACVP Policy
 
@@ -115,11 +117,16 @@ uvicorn app.main:app --reload --port 8000
 
 ## Scope
 
-Supported protocol work is ML-DSA `keyGen`, `sigGen`, and `sigVer` for FIPS 204.
-ML-KEM / FIPS 203 has NIST GenVal readiness verified only for `keyGen` and
-`encapDecap`. The ML-KEM backend module is not registered, FIPS 203 is not a
-production algorithm descriptor, and there is no API, frontend enablement, or
-production support in this stage.
+The backend registry supports ML-DSA `keyGen`, `sigGen`, and `sigVer` for FIPS
+204 and ML-KEM `keyGen` and `encapDecap` for FIPS 203. The algorithms endpoint
+lists both immutable descriptors, and the ML-KEM module provides strict
+registration, prompt, response, mapper, and NIST validation-normalization
+contracts.
+
+Frontend FIPS 203 workflows and a real ML-KEM IUT harness are not implemented.
+Full ML-KEM API E2E generation/upload/validation and live NIST pass/fail parity
+remain Stage 6 acceptance work. Mixed ML-DSA/ML-KEM sessions have not been
+formally supported or accepted.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
@@ -129,3 +136,5 @@ Stage 3 architecture details are recorded in
 [`docs/stages/stage3-algorithm-neutral-core.md`](docs/stages/stage3-algorithm-neutral-core.md).
 Stage 4 ML-KEM GenVal readiness evidence is recorded in
 [`docs/stages/stage4-mlkem-genval-readiness.md`](docs/stages/stage4-mlkem-genval-readiness.md).
+Stage 5 ML-KEM module details are recorded in
+[`docs/stages/stage5-mlkem-algorithm-module.md`](docs/stages/stage5-mlkem-algorithm-module.md).

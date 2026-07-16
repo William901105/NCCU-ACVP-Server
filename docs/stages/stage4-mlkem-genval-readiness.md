@@ -122,6 +122,10 @@ remove failure messages. The final tracked stdout/stderr contains no machine
 path, temporary path, client timeout, initialization failure, Dashboard bind
 conflict, or fatal message. The regression test enforces these gates.
 
+Tracked Check and Generate logs are guarded against Orleans connection
+timeouts, gateway failures, dashboard bind conflicts, unhandled exceptions,
+fatal runtime errors, and machine-specific paths.
+
 The Stage 4 fixture test validates provenance, hashes, identities, parameter
 sets, functions, prompt fields, and copy-script allowlist without requiring
 Orleans. The complete backend suite was rerun with `65 passed`, and the

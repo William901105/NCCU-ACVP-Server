@@ -23,15 +23,24 @@ from ..genval import (
     get_genval_settings,
 )
 from ..genval.artifacts import vector_set_artifact_dir
-from ..models import AcvpV1TestSessionCreateRequest, AcvpV1VectorSetGenerateRequest
+from ..models import (
+    AcvpV1TestSessionCertificationRequest,
+    AcvpV1TestSessionCreateRequest,
+    AcvpV1VectorSetGenerateRequest,
+)
 from ..storage.sqlite_store import (
     ACVP_SKELETON_SESSION_STORE,
     ACVP_SKELETON_VECTOR_SET_STORE,
+    create_acvp_request,
     delete_acvp_vector_sets_for_session,
     get_acvp_session,
+    get_acvp_request,
+    get_acvp_request_for_session,
     get_acvp_vector_set,
+    get_acvp_vector_set_by_vs_id,
     list_acvp_sessions,
     list_acvp_vector_sets_for_session,
+    save_acvp_request,
     save_acvp_session,
     save_acvp_vector_set,
 )
@@ -521,6 +530,13 @@ def request_nist_vector_sets_for_session(
 
 
 def _registration_session_response(session: Dict[str, Any]) -> Dict[str, Any]:
+    vector_sets = _session_vector_sets(session)
+    vs_ids = [int(vector_set["vsId"]) for vector_set in vector_sets]
+    vector_set_urls = [
+        _nested_vector_set_path(session["testSessionId"], vs_id)
+        for vs_id in vs_ids
+    ]
+    result_summary = _session_result_summary(session)
     response = {
         "testSessionId": session["testSessionId"],
         "status": session["status"],
@@ -528,21 +544,40 @@ def _registration_session_response(session: Dict[str, Any]) -> Dict[str, Any]:
         "negotiatedCapabilities": session["negotiatedCapabilities"],
         "negotiationWarnings": session["negotiationWarnings"],
         "unsupported": session["unsupported"],
-        "vectorSetIds": list(session["vectorSetIds"]),
-        "vectorSetUrls": list(session["vectorSetUrls"]),
+        "vectorSetIds": vs_ids,
+        "vsIds": vs_ids,
+        "vectorSetUrls": vector_set_urls,
         "createdAt": session["createdAt"],
         "updatedAt": session["updatedAt"],
         "expiresAt": session.get("expiresAt"),
         "campaignSeed": session.get("campaignSeed"),
         "testsPerGroup": session.get("testsPerGroup"),
         "isSample": session.get("isSample"),
-        "stateHistory": list(session.get("stateHistory", [])),
+        "passed": result_summary["sessionPassed"],
+        "publishable": result_summary["sessionPassed"],
+        "stateHistory": _public_state_history(session.get("stateHistory", [])),
     }
     if "vectorGeneration" in session:
         response["vectorGeneration"] = session["vectorGeneration"]
     else:
         response["nextAction"] = VECTOR_GENERATION_AVAILABLE_ACTION
     return with_server_metadata(response)
+
+
+def legacy_python_session_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Preserve pre-Stage 7 internal IDs for direct, non-HTTP handler callers."""
+    session_id = response.get("testSessionId")
+    session = get_acvp_session(str(session_id)) if session_id is not None else None
+    if session is None:
+        return response
+    legacy = dict(response)
+    internal_ids = list(session.get("vectorSetIds", []))
+    legacy["vectorSetIds"] = internal_ids
+    legacy["vectorSetUrls"] = [
+        f"/acvp/v1/testSessions/{session_id}/vectorSets/{vector_set_id}"
+        for vector_set_id in internal_ids
+    ]
+    return legacy
 
 
 def _generate_and_store_vector_sets(
@@ -612,7 +647,7 @@ def _generate_and_store_vector_sets(
         save_acvp_vector_set(vector_set)
         vector_set_ids.append(vector_set["vectorSetId"])
         vector_set_urls.append(
-            _nested_vector_set_path(session["testSessionId"], vector_set["vectorSetId"])
+            _nested_vector_set_path(session["testSessionId"], int(vector_set["vsId"]))
         )
 
     if expires_at is not None and session.get("expiresAt") is None:
@@ -957,13 +992,13 @@ def get_vector_set(vector_set_id: str) -> Any:
     return _get_vector_set_prompt_response(vector_set, path)
 
 
-def get_vector_set_prompt(session_id: str, vector_set_id: str) -> Any:
-    vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
+def get_vector_set_prompt(session_id: str, vs_id: Any) -> Any:
+    vector_set = get_vector_set_for_session_or_404(session_id, vs_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     return _get_vector_set_prompt_response(
         vector_set,
-        _nested_vector_set_path(session_id, vector_set_id),
+        _nested_vector_set_path(session_id, int(vector_set["vsId"])),
     )
 
 
@@ -1002,13 +1037,13 @@ def get_vector_set_expected_results(vector_set_id: str) -> Any:
     )
 
 
-def get_vector_set_expected(session_id: str, vector_set_id: str) -> Any:
-    vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
+def get_vector_set_expected(session_id: str, vs_id: Any) -> Any:
+    vector_set = get_vector_set_for_session_or_404(session_id, vs_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
     return _get_vector_set_expected_response(
         vector_set,
-        f"{_nested_vector_set_path(session_id, vector_set_id)}/expected",
+        f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}/expected",
     )
 
 
@@ -1041,21 +1076,27 @@ def _get_vector_set_expected_response(vector_set: Dict[str, Any], path: str) -> 
 
 def submit_vector_set_results(
     session_id: Optional[str],
-    vector_set_id: str,
+    vector_set_id: Any,
     response: Any,
     registry: AlgorithmModuleRegistry,
     *,
     show_expected: bool = False,
     update: bool = False,
 ) -> Any:
+    legacy_direct_identity = (
+        session_id is not None
+        and isinstance(vector_set_id, str)
+        and not vector_set_id.isdigit()
+    )
     if session_id is None:
         vector_set = get_vector_set_or_404(vector_set_id)
         path = f"/acvp/v1/vectorSets/{vector_set_id}/results"
     else:
         vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
-        path = f"{_nested_vector_set_path(session_id, vector_set_id)}/results"
     if isinstance(vector_set, JSONResponse):
         return vector_set
+    if session_id is not None:
+        path = f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}/results"
     session = get_acvp_session(vector_set["testSessionId"])
     if session is not None:
         legacy = _reject_legacy_local_session(session, path)
@@ -1077,11 +1118,13 @@ def submit_vector_set_results(
             "Vector set is not ready for result submission.",
             path,
         )
-    if session is not None and session.get("submittedForValidation"):
+    if session is not None and (
+        session.get("localFinalized") or session.get("certificationRequestId") is not None
+    ):
         return acvp_error(
             409,
             "VECTOR_SET_ALREADY_FINALIZED",
-            "Vector set results cannot be changed after session submit-for-validation.",
+            "Vector set results cannot be changed after session finalization or certification.",
             path,
         )
     if show_expected and not _vector_set_is_sample(vector_set):
@@ -1093,6 +1136,15 @@ def submit_vector_set_results(
         )
 
     response = _response_with_prompt_metadata(response, vector_set)
+    if legacy_direct_identity and isinstance(response, dict):
+        response["vsId"] = vector_set.get("vsId")
+    if isinstance(response, dict) and response.get("vsId") != vector_set.get("vsId"):
+        return acvp_error(
+            400,
+            "VECTOR_SET_ID_MISMATCH",
+            "Response vsId must match the public vector-set resource.",
+            "$.vsId",
+        )
     mode = normalize_acvp_json(vector_set["prompt"]).get("mode")
     try:
         module = _module_for_prompt(vector_set["prompt"], registry)
@@ -1145,7 +1197,7 @@ def submit_vector_set_results(
                 session,
                 TestSessionStatus.RESULTS_SUBMITTED.value,
                 reason="At least one vector set result was submitted.",
-                metadata={"vectorSetId": vector_set_id},
+                metadata={"vsId": vector_set["vsId"]},
             )
         _transition_vector_if_needed(
             vector_set,
@@ -1193,7 +1245,7 @@ def submit_vector_set_results(
 
 def get_vector_set_results(
     session_id: Optional[str],
-    vector_set_id: str,
+    vector_set_id: Any,
     *,
     show_expected: bool = False,
 ) -> Any:
@@ -1202,9 +1254,10 @@ def get_vector_set_results(
         path = f"/acvp/v1/vectorSets/{vector_set_id}/results"
     else:
         vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
-        path = f"{_nested_vector_set_path(session_id, vector_set_id)}/results"
     if isinstance(vector_set, JSONResponse):
         return vector_set
+    if session_id is not None:
+        path = f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}/results"
     session = get_acvp_session(vector_set["testSessionId"])
     if session is not None:
         legacy = _reject_legacy_local_session(session, path)
@@ -1273,7 +1326,9 @@ def _strict_test_session_results(session: Dict[str, Any]) -> Dict[str, Any]:
         all_passed = all_passed and disposition == "passed"
         results.append(
             {
-                "vectorSetUrl": _nested_vector_set_path(session["testSessionId"], vector_set_id),
+                "vectorSetUrl": _nested_vector_set_path(
+                    session["testSessionId"], int(vector_set["vsId"])
+                ) if vector_set is not None else None,
                 "status": disposition,
                 "disposition": disposition,
             }
@@ -1283,6 +1338,111 @@ def _strict_test_session_results(session: Dict[str, Any]) -> Dict[str, Any]:
         "passed": all_passed,
         "results": results,
     }
+
+
+def certify_test_session(
+    session_id: str,
+    certification: AcvpV1TestSessionCertificationRequest,
+) -> Any:
+    session = _get_session(session_id)
+    if isinstance(session, JSONResponse):
+        return session
+    path = f"/acvp/v1/testSessions/{session_id}"
+    legacy = _reject_legacy_local_session(session, path)
+    if isinstance(legacy, JSONResponse):
+        return legacy
+    unavailable = _reject_if_session_unavailable(session, path)
+    if isinstance(unavailable, JSONResponse):
+        return unavailable
+
+    summary = _session_result_summary(session)
+    if summary["totalVectorSets"] == 0:
+        return acvp_error(
+            409,
+            "VECTOR_SETS_NOT_GENERATED",
+            "The test session has no vector sets to certify.",
+            path,
+        )
+    if summary["pendingVectorSets"] > 0:
+        return acvp_error(
+            409,
+            "VECTOR_SET_RESULTS_INCOMPLETE",
+            "All vector set results must be submitted before certification.",
+            path,
+        )
+    if not summary["sessionPassed"]:
+        return acvp_error(
+            409,
+            "TEST_SESSION_NOT_PASSED",
+            "Only a test session whose NIST GenVal results all passed can be certified.",
+            path,
+        )
+
+    payload = certification.model_dump(exclude_none=True)
+    existing = get_acvp_request_for_session(session_id)
+    if existing is not None:
+        if existing["certification"] != payload:
+            return acvp_error(
+                409,
+                "CERTIFICATION_REQUEST_CONFLICT",
+                "A different certification request already exists for this test session.",
+                path,
+            )
+        return _public_request_resource(existing)
+
+    request = create_acvp_request(
+        session_id,
+        payload,
+        status="initial",
+        message="Awaiting processing by an external validation authority.",
+    )
+    session["certificationRequestId"] = request["requestId"]
+    session["certificationSubmittedAt"] = request["createdAt"]
+    save_acvp_session(session)
+    return _public_request_resource(request)
+
+
+def get_request_resource(request_id: int) -> Any:
+    request = get_acvp_request(request_id)
+    path = f"/acvp/v1/requests/{request_id}"
+    if request is None:
+        return acvp_error(
+            404,
+            "UNKNOWN_REQUEST",
+            "Unknown ACVP request resource.",
+            path,
+        )
+
+    session = get_acvp_session(request["testSessionId"])
+    if session is not None:
+        _expire_session_if_needed(session)
+        if (
+            request["status"] in {"initial", "processing"}
+            and session["status"] in {
+                TestSessionStatus.CANCELLED.value,
+                TestSessionStatus.EXPIRED.value,
+            }
+        ):
+            request["status"] = "rejected"
+            request["message"] = (
+                "Certification request rejected because the test session is "
+                f"{session['status']}."
+            )
+            request["updatedAt"] = _timestamp()
+            save_acvp_request(request)
+    return _public_request_resource(request)
+
+
+def _public_request_resource(request: Dict[str, Any]) -> Dict[str, Any]:
+    body = {
+        "url": request["url"],
+        "status": request["status"],
+    }
+    if request.get("message") is not None:
+        body["message"] = request["message"]
+    if request.get("approvedUrl") is not None:
+        body["approvedUrl"] = request["approvedUrl"]
+    return body
 
 
 def submit_test_session_for_validation(session_id: str) -> Any:
@@ -1320,7 +1480,7 @@ def submit_test_session_for_validation(session_id: str) -> Any:
             path,
         )
 
-    if not session.get("submittedForValidation"):
+    if not session.get("localFinalized"):
         final_status = (
             TestSessionStatus.FAILED.value
             if summary["failedVectorSets"] > 0
@@ -1340,8 +1500,8 @@ def submit_test_session_for_validation(session_id: str) -> Any:
             )
         except StateTransitionError as exc:
             return _state_transition_error_response(exc)
-        session["submittedForValidation"] = True
-        session["submittedForValidationAt"] = session["updatedAt"]
+        session["localFinalized"] = True
+        session["localFinalizedAt"] = session["updatedAt"]
         save_acvp_session(session)
         summary = _session_result_summary(session)
 
@@ -1350,9 +1510,11 @@ def submit_test_session_for_validation(session_id: str) -> Any:
             "testSessionId": session_id,
             "status": session["status"],
             "summary": summary,
-            "submittedForValidation": session.get("submittedForValidation", False),
-            "submittedForValidationAt": session.get("submittedForValidationAt"),
-            "stateHistory": list(session.get("stateHistory", [])),
+            "localExtension": True,
+            "deprecated": True,
+            "localFinalized": session.get("localFinalized", False),
+            "localFinalizedAt": session.get("localFinalizedAt"),
+            "stateHistory": _public_state_history(session.get("stateHistory", [])),
         }
     )
 
@@ -1393,20 +1555,21 @@ def delete_test_session(session_id: str) -> Any:
             "cancelled": True,
             "testSessionId": session_id,
             "status": session["status"],
-            "stateHistory": list(session.get("stateHistory", [])),
+            "stateHistory": _public_state_history(session.get("stateHistory", [])),
         }
     )
 
 
-def cancel_vector_set(session_id: Optional[str], vector_set_id: str) -> Any:
+def cancel_vector_set(session_id: Optional[str], vector_set_id: Any) -> Any:
     if session_id is None:
         vector_set = get_vector_set_or_404(vector_set_id)
         path = f"/acvp/v1/vectorSets/{vector_set_id}"
     else:
         vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
-        path = _nested_vector_set_path(session_id, vector_set_id)
     if isinstance(vector_set, JSONResponse):
         return vector_set
+    if session_id is not None:
+        path = _nested_vector_set_path(session_id, int(vector_set["vsId"]))
     unavailable = _reject_if_vector_unavailable(vector_set, path, allow_cancelled=True)
     if isinstance(unavailable, JSONResponse):
         return unavailable
@@ -1427,10 +1590,11 @@ def cancel_vector_set(session_id: Optional[str], vector_set_id: str) -> Any:
     return with_server_metadata(
         {
             "cancelled": vector_set["status"] == VectorSetStatus.CANCELLED.value,
-            "vectorSetId": vector_set_id,
+            "vectorSetId": int(vector_set["vsId"]),
+            "vsId": int(vector_set["vsId"]),
             "testSessionId": vector_set["testSessionId"],
             "status": vector_set["status"],
-            "stateHistory": list(vector_set.get("stateHistory", [])),
+            "stateHistory": _public_state_history(vector_set.get("stateHistory", [])),
         }
     )
 
@@ -1459,19 +1623,50 @@ def get_vector_set_or_404(vector_set_id: str) -> Any:
     return vector_set
 
 
-def get_vector_set_for_session_or_404(session_id: str, vector_set_id: str) -> Any:
+def get_vector_set_for_session_or_404(session_id: str, vs_id: Any) -> Any:
     session = get_session_or_404(session_id)
     if isinstance(session, JSONResponse):
         return session
-    vector_set = get_acvp_vector_set(vector_set_id)
-    if vector_set is None or vector_set.get("testSessionId") != session_id:
+    numeric_vs_id: Optional[int] = None
+    if isinstance(vs_id, int) and not isinstance(vs_id, bool):
+        numeric_vs_id = vs_id
+    elif isinstance(vs_id, str) and vs_id.isdigit():
+        numeric_vs_id = int(vs_id)
+
+    if numeric_vs_id is not None:
+        vector_set = get_acvp_vector_set_by_vs_id(session_id, numeric_vs_id)
+    else:
+        vector_set = get_acvp_vector_set(str(vs_id))
+        if vector_set is not None and vector_set.get("testSessionId") != session_id:
+            vector_set = None
+    if vector_set is None:
         return acvp_error(
             404,
             "UNKNOWN_VECTOR_SET",
             "Unknown vectorSetId for test session.",
-            _nested_vector_set_path(session_id, vector_set_id),
+            f"/acvp/v1/testSessions/{session_id}/vectorSets",
         )
     return vector_set
+
+
+def legacy_vector_set_canonical_path(
+    session_id: str,
+    internal_vector_set_id: str,
+    *,
+    suffix: str = "",
+) -> Any:
+    session = get_session_or_404(session_id)
+    if isinstance(session, JSONResponse):
+        return session
+    vector_set = get_acvp_vector_set(internal_vector_set_id)
+    if vector_set is None or vector_set.get("testSessionId") != session_id:
+        return acvp_error(
+            404,
+            "UNKNOWN_VECTOR_SET",
+            "Unknown legacy vector-set resource for test session.",
+            f"/acvp/v1/testSessions/{session_id}/vectorSets",
+        )
+    return f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}{suffix}"
 
 
 def _get_session(session_id: str) -> Any:
@@ -1516,6 +1711,11 @@ def _session_summary(session: Dict[str, Any]) -> Dict[str, Any]:
     ]
     first_summary = vector_set_summaries[0] if vector_set_summaries else {}
     result_summary = _session_result_summary(session)
+    vs_ids = [int(item["vsId"]) for item in vector_set_summaries]
+    vector_set_urls = [
+        _nested_vector_set_path(session["testSessionId"], vs_id)
+        for vs_id in vs_ids
+    ]
     summary = {
         "testSessionId": session["testSessionId"],
         "createdAt": session["createdAt"],
@@ -1523,20 +1723,23 @@ def _session_summary(session: Dict[str, Any]) -> Dict[str, Any]:
         "expiresAt": session.get("expiresAt"),
         "status": session["status"],
         "label": session.get("label"),
-        "vectorSetIds": list(session["vectorSetIds"]),
-        "vectorSetUrls": list(session["vectorSetUrls"]),
+        "vectorSetIds": vs_ids,
+        "vsIds": vs_ids,
+        "vectorSetUrls": vector_set_urls,
         "vectorSetCount": len(session["vectorSetIds"]),
         "downloadedVectorSetCount": result_summary["downloadedVectorSets"],
         "submittedVectorSetCount": result_summary["submittedVectorSets"],
         "validatedVectorSetCount": result_summary["validatedVectorSets"],
         "failedVectorSetCount": result_summary["failedVectorSets"],
         "pendingVectorSetCount": result_summary["pendingVectorSets"],
+        "passed": result_summary["sessionPassed"],
+        "publishable": result_summary["sessionPassed"],
         "algorithm": first_summary.get("algorithm"),
         "mode": first_summary.get("mode"),
         "revision": first_summary.get("revision"),
         "testGroupCount": first_summary.get("testGroupCount", 0),
         "testCaseCount": first_summary.get("testCaseCount", 0),
-        "stateHistory": list(session.get("stateHistory", [])),
+        "stateHistory": _public_state_history(session.get("stateHistory", [])),
         **SERVER_METADATA,
     }
     if _legacy_local_session(session):
@@ -1554,13 +1757,15 @@ def _session_summary(session: Dict[str, Any]) -> Dict[str, Any]:
 
 def _vector_set_summary(vector_set: Dict[str, Any]) -> Dict[str, Any]:
     prompt_summary = summarize_vector_set(normalize_acvp_json(vector_set["prompt"]))
+    vs_id = int(vector_set.get("vsId", prompt_summary["vsId"]))
     return {
-        "vectorSetId": vector_set["vectorSetId"],
+        "vectorSetId": vs_id,
+        "vsId": vs_id,
         "testSessionId": vector_set["testSessionId"],
         "status": vector_set["status"],
         "url": _nested_vector_set_path(
             vector_set["testSessionId"],
-            vector_set["vectorSetId"],
+            vs_id,
         ),
         "generatedFromCapabilities": vector_set.get("generatedFromCapabilities", False),
         "campaignSeed": vector_set.get("campaignSeed"),
@@ -1569,21 +1774,36 @@ def _vector_set_summary(vector_set: Dict[str, Any]) -> Dict[str, Any]:
         "hasInternalProjection": vector_set.get("hasInternalProjection", False),
         "nistSourceCommit": vector_set.get("nistSourceCommit"),
         "mode": vector_set.get("mode", prompt_summary.get("mode")),
-        "vsId": vector_set.get("vsId", prompt_summary.get("vsId")),
         "downloadedAt": vector_set.get("downloadedAt"),
         "submittedAt": vector_set.get("submittedAt"),
         "validatedAt": vector_set.get("validatedAt"),
         "failedAt": vector_set.get("failedAt"),
         "cancelledAt": vector_set.get("cancelledAt"),
         "expiresAt": vector_set.get("expiresAt"),
-        "stateHistory": list(vector_set.get("stateHistory", [])),
+        "stateHistory": _public_state_history(vector_set.get("stateHistory", [])),
         **prompt_summary,
         **SERVER_METADATA,
     }
 
 
-def _nested_vector_set_path(session_id: str, vector_set_id: str) -> str:
-    return f"/acvp/v1/testSessions/{session_id}/vectorSets/{vector_set_id}"
+def _nested_vector_set_path(session_id: str, vs_id: int) -> str:
+    return f"/acvp/v1/testSessions/{session_id}/vectorSets/{vs_id}"
+
+
+def _public_state_history(history: Any) -> List[Dict[str, Any]]:
+    public_history: List[Dict[str, Any]] = []
+    for raw_event in history if isinstance(history, list) else []:
+        if not isinstance(raw_event, dict):
+            continue
+        event = dict(raw_event)
+        metadata = event.get("metadata")
+        if isinstance(metadata, dict):
+            public_metadata = dict(metadata)
+            public_metadata.pop("vectorSetId", None)
+            public_metadata.pop("internalVectorSetId", None)
+            event["metadata"] = public_metadata
+        public_history.append(event)
+    return public_history
 
 
 def _response_with_prompt_metadata(response: Any, vector_set: Dict[str, Any]) -> Any:

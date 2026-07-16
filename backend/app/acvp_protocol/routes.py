@@ -4,33 +4,43 @@ import json
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
 from ..acvp_core.dependencies import get_algorithm_registry
 from ..acvp_core.registry import AlgorithmModuleRegistry
 from ..models import (
     AcvpV1TestSessionCreateRequest,
+    AcvpV1TestSessionCertificationRequest,
     AcvpV1VectorSetGenerateRequest,
     AcvpV1VectorSetResultsSubmitRequest,
 )
-from .envelope import acvp_envelope, envelope_response
+from .envelope import (
+    AcvpEnvelopeError,
+    acvp_envelope,
+    envelope_response,
+    parse_acvp_request,
+)
 from .errors import acvp_error_response
 from .paging import parse_paging_params
 from .service import (
     algorithms,
     cancel_vector_set,
+    certify_test_session,
     create_test_session,
     delete_test_session,
     request_nist_vector_sets_for_session,
     get_test_session,
     get_test_session_results,
     get_test_session_vector_sets,
+    get_request_resource,
     get_vector_set,
     get_vector_set_expected,
     get_vector_set_expected_results,
     get_vector_set_prompt,
     get_vector_set_results,
+    legacy_python_session_response,
+    legacy_vector_set_canonical_path,
     list_test_sessions,
     submit_test_session_for_validation,
     submit_vector_set_results,
@@ -71,16 +81,33 @@ def list_acvp_v1_test_sessions(
 def create_acvp_v1_test_session(
     payload: Any = Body(...),
     registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
+    response: Response = None,
 ) -> Any:
     request = _parse_session_create_request(payload)
     if isinstance(request, JSONResponse):
         return _canonical_response(request)
-    return _canonical_response(create_test_session(request, registry))
+    if request["legacyBareBody"] and response is not None:
+        _mark_deprecated_compatibility(response, "Use the canonical ACVP request envelope.")
+    created = create_test_session(request["request"], registry)
+    if response is None and isinstance(created, dict):
+        created = legacy_python_session_response(created)
+    return _canonical_response(created)
 
 
 @router.get("/testSessions/{sessionId}")
 def get_acvp_v1_test_session(sessionId: str) -> Any:
     return _canonical_response(get_test_session(sessionId))
+
+
+@router.put("/testSessions/{sessionId}")
+def certify_acvp_v1_test_session(
+    sessionId: str,
+    payload: Any = Body(...),
+) -> Any:
+    parsed = _parse_enveloped_model(payload, AcvpV1TestSessionCertificationRequest)
+    if isinstance(parsed, JSONResponse):
+        return _canonical_response(parsed)
+    return _canonical_response(certify_test_session(sessionId, parsed))
 
 
 @router.delete("/testSessions/{sessionId}")
@@ -122,31 +149,31 @@ def generate_acvp_v1_test_session_vector_sets(
     )
 
 
-@router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}")
-def get_acvp_v1_test_session_vector_set(sessionId: str, vectorSetId: str) -> Any:
+@router.get("/testSessions/{sessionId}/vectorSets/{vsId:int}")
+def get_acvp_v1_test_session_vector_set(sessionId: str, vsId: int) -> Any:
     return _canonical_response(
-        get_vector_set_prompt(sessionId, vectorSetId),
+        get_vector_set_prompt(sessionId, vsId),
         add_server_metadata=False,
     )
 
 
-@router.delete("/testSessions/{sessionId}/vectorSets/{vectorSetId}")
-def delete_acvp_v1_test_session_vector_set(sessionId: str, vectorSetId: str) -> Any:
-    return _canonical_response(cancel_vector_set(sessionId, vectorSetId))
+@router.delete("/testSessions/{sessionId}/vectorSets/{vsId:int}")
+def delete_acvp_v1_test_session_vector_set(sessionId: str, vsId: int) -> Any:
+    return _canonical_response(cancel_vector_set(sessionId, vsId))
 
 
-@router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected")
-def get_acvp_v1_test_session_vector_set_expected(sessionId: str, vectorSetId: str) -> Any:
+@router.get("/testSessions/{sessionId}/vectorSets/{vsId:int}/expected")
+def get_acvp_v1_test_session_vector_set_expected(sessionId: str, vsId: int) -> Any:
     return _canonical_response(
-        get_vector_set_expected(sessionId, vectorSetId),
+        get_vector_set_expected(sessionId, vsId),
         add_server_metadata=False,
     )
 
 
-@router.post("/testSessions/{sessionId}/vectorSets/{vectorSetId}/results")
+@router.post("/testSessions/{sessionId}/vectorSets/{vsId:int}/results")
 def submit_acvp_v1_test_session_vector_set_results(
     sessionId: str,
-    vectorSetId: str,
+    vsId: int,
     payload: Any = Body(...),
     registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
 ) -> Any:
@@ -156,7 +183,7 @@ def submit_acvp_v1_test_session_vector_set_results(
     return _canonical_response(
         submit_vector_set_results(
             sessionId,
-            vectorSetId,
+            vsId,
             parsed["response"],
             registry,
             show_expected=parsed["showExpected"],
@@ -164,10 +191,10 @@ def submit_acvp_v1_test_session_vector_set_results(
     )
 
 
-@router.put("/testSessions/{sessionId}/vectorSets/{vectorSetId}/results")
+@router.put("/testSessions/{sessionId}/vectorSets/{vsId:int}/results")
 def update_acvp_v1_test_session_vector_set_results(
     sessionId: str,
-    vectorSetId: str,
+    vsId: int,
     payload: Any = Body(...),
     registry: AlgorithmModuleRegistry = Depends(get_algorithm_registry),
 ) -> Any:
@@ -177,7 +204,7 @@ def update_acvp_v1_test_session_vector_set_results(
     return _canonical_response(
         submit_vector_set_results(
             sessionId,
-            vectorSetId,
+            vsId,
             parsed["response"],
             registry,
             show_expected=parsed["showExpected"],
@@ -186,14 +213,14 @@ def update_acvp_v1_test_session_vector_set_results(
     )
 
 
-@router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}/results")
+@router.get("/testSessions/{sessionId}/vectorSets/{vsId:int}/results")
 def get_acvp_v1_test_session_vector_set_results(
     sessionId: str,
-    vectorSetId: str,
+    vsId: int,
     showExpected: bool = False,
 ) -> Any:
     return _canonical_response(
-        get_vector_set_results(sessionId, vectorSetId, show_expected=showExpected)
+        get_vector_set_results(sessionId, vsId, show_expected=showExpected)
     )
 
 
@@ -202,9 +229,67 @@ def get_acvp_v1_test_session_results(sessionId: str) -> Any:
     return _canonical_response(get_test_session_results(sessionId))
 
 
+@router.get("/requests/{requestId:int}")
+def get_acvp_v1_request(requestId: int) -> Any:
+    return _canonical_response(get_request_resource(requestId))
+
+
 @router.post("/testSessions/{sessionId}/submit")
-def submit_acvp_v1_test_session(sessionId: str) -> Any:
+def submit_acvp_v1_test_session(sessionId: str, response: Response = None) -> Any:
+    if response is not None:
+        _mark_deprecated_compatibility(
+            response,
+            "Local finalization only; use PUT /acvp/v1/testSessions/{id} for certification.",
+        )
     return _canonical_response(submit_test_session_for_validation(sessionId))
+
+
+@router.get(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}",
+    include_in_schema=False,
+)
+def get_legacy_acvp_v1_vector_set(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId)
+
+
+@router.delete(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}",
+    include_in_schema=False,
+)
+def delete_legacy_acvp_v1_vector_set(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId)
+
+
+@router.get(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}/expected",
+    include_in_schema=False,
+)
+def get_legacy_acvp_v1_vector_set_expected(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId, suffix="/expected")
+
+
+@router.post(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}/results",
+    include_in_schema=False,
+)
+def post_legacy_acvp_v1_vector_set_results(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId, suffix="/results")
+
+
+@router.put(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}/results",
+    include_in_schema=False,
+)
+def put_legacy_acvp_v1_vector_set_results(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId, suffix="/results")
+
+
+@router.get(
+    "/testSessions/{sessionId}/vectorSets/{legacyVectorSetId}/results",
+    include_in_schema=False,
+)
+def get_legacy_acvp_v1_vector_set_results(sessionId: str, legacyVectorSetId: str) -> Any:
+    return _legacy_vector_redirect(sessionId, legacyVectorSetId, suffix="/results")
 
 
 # Kept as Python-level compatibility helpers only. They are deliberately not routes.
@@ -299,51 +384,56 @@ def parse_acvp_results_submission_payload(payload: Any) -> Any:
 
 
 def _parse_acvp_results_envelope(payload: list[Any]) -> Any:
-    if len(payload) < 2 or not isinstance(payload[0], dict):
-        return acvp_error_response(
-            status_code=400,
-            code="INVALID_ACVP_ENVELOPE",
-            message="ACVP envelope must contain version and body objects.",
-            path="$",
-        )
-    if payload[0].get("acvVersion") != "1.0":
-        return acvp_error_response(
-            status_code=400,
-            code="UNSUPPORTED_ACVP_VERSION",
-            message="Only acvVersion 1.0 is supported.",
-            path="$[0].acvVersion",
-        )
-    if not isinstance(payload[1], dict):
-        return acvp_error_response(
-            status_code=400,
-            code="INVALID_ACVP_ENVELOPE",
-            message="ACVP results envelope body must be a JSON object.",
-            path="$[1]",
-        )
-    response, show_expected = _without_show_expected(payload[1])
+    try:
+        parsed = parse_acvp_request(payload)
+    except AcvpEnvelopeError as exc:
+        return _envelope_error_response(exc)
+    response, show_expected = _without_show_expected(parsed.body)
     return {"response": response, "showExpected": show_expected}
 
 
 def _parse_session_create_request(payload: Any) -> Any:
     if isinstance(payload, AcvpV1TestSessionCreateRequest):
-        return payload
-    if not isinstance(payload, dict):
-        return _invalid_request("Request body must be a JSON object.")
-    if "prompt" in payload:
+        return {"request": payload, "legacyBareBody": True}
+    try:
+        parsed = parse_acvp_request(payload, allow_legacy_bare_body=True)
+    except AcvpEnvelopeError as exc:
+        return _envelope_error_response(exc)
+    if "prompt" in parsed.body:
         return acvp_error_response(
             status_code=400,
             code="STRICT_REGISTRATION_REQUIRED",
             message="prompt sessions are not supported. Submit an algorithms registration container.",
             path="$.prompt",
         )
-    if "autoGenerateExpectedResults" in payload:
+    if "autoGenerateExpectedResults" in parsed.body:
         return acvp_error_response(
             status_code=400,
             code="AUTO_EXPECTED_RESULTS_NOT_SUPPORTED",
             message="autoGenerateExpectedResults is not supported by the strict workflow.",
             path="$.autoGenerateExpectedResults",
         )
-    return _validate_strict_model(payload, AcvpV1TestSessionCreateRequest)
+    request = _validate_strict_model(parsed.body, AcvpV1TestSessionCreateRequest)
+    if isinstance(request, JSONResponse):
+        return request
+    return {"request": request, "legacyBareBody": parsed.legacy_bare_body}
+
+
+def _parse_enveloped_model(payload: Any, model: Any) -> Any:
+    try:
+        parsed = parse_acvp_request(payload)
+    except AcvpEnvelopeError as exc:
+        return _envelope_error_response(exc)
+    return _validate_strict_model(parsed.body, model)
+
+
+def _envelope_error_response(exc: AcvpEnvelopeError) -> JSONResponse:
+    return acvp_error_response(
+        status_code=400,
+        code=exc.code,
+        message=exc.message,
+        path=exc.path,
+    )
 
 
 def _parse_vector_set_generate_request(payload: Any) -> Any:
@@ -408,3 +498,32 @@ def _validation_error_message(exc: ValidationError) -> str:
     if location:
         return f"{location}: {first.get('msg', 'Invalid request body.')}"
     return str(first.get("msg", "Invalid request body."))
+
+
+def _legacy_vector_redirect(
+    session_id: str,
+    internal_vector_set_id: str,
+    *,
+    suffix: str = "",
+) -> Any:
+    target = legacy_vector_set_canonical_path(
+        session_id,
+        internal_vector_set_id,
+        suffix=suffix,
+    )
+    if isinstance(target, JSONResponse):
+        return _canonical_response(target)
+    return RedirectResponse(
+        url=target,
+        status_code=308,
+        headers={
+            "Deprecation": "true",
+            "Warning": '299 - "Legacy UUID vector-set URLs are deprecated"',
+            "Link": f'<{target}>; rel="canonical"',
+        },
+    )
+
+
+def _mark_deprecated_compatibility(response: Response, warning: str) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Warning"] = f'299 - "{warning}"'

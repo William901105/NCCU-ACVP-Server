@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 JsonObject = Union[Dict[str, Any], List[Any]]
@@ -35,3 +35,58 @@ class AcvpV1VectorSetResultsSubmitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     response: JsonObject
+
+
+class AcvpV1CertificationPrerequisite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    algorithm: str
+    validationId: str
+
+    @field_validator("algorithm", "validationId")
+    @classmethod
+    def validate_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must be a non-empty string")
+        return value
+
+
+class AcvpV1CertificationAlgorithmPrerequisites(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    algorithm: str
+    mode: Optional[str] = None
+    prerequisites: List[AcvpV1CertificationPrerequisite]
+
+    @field_validator("algorithm")
+    @classmethod
+    def validate_algorithm(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must be a non-empty string")
+        return value
+
+
+class AcvpV1TestSessionCertificationRequest(BaseModel):
+    """Reference-form certification request from the ACVP core protocol."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    moduleUrl: str
+    oeUrl: str
+    algorithmPrerequisites: List[AcvpV1CertificationAlgorithmPrerequisites] = Field(
+        default_factory=list
+    )
+
+    @field_validator("moduleUrl")
+    @classmethod
+    def validate_module_url(cls, value: str) -> str:
+        if not value.startswith("/acvp/v1/modules/") or value.endswith("/"):
+            raise ValueError("must identify an /acvp/v1/modules/{id} resource")
+        return value
+
+    @field_validator("oeUrl")
+    @classmethod
+    def validate_oe_url(cls, value: str) -> str:
+        if not value.startswith("/acvp/v1/oes/") or value.endswith("/"):
+            raise ValueError("must identify an /acvp/v1/oes/{id} resource")
+        return value

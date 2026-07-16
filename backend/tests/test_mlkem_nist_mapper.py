@@ -27,7 +27,10 @@ def test_mapper_honors_custom_identity_fields_and_preserves_prerequisites() -> N
         "mode": "keyGen",
         "revision": "FIPS203",
         "parameterSets": ["ML-KEM-768"],
-        "prereqVals": [{"algorithm": "SHA", "valValue": "A1234"}],
+        "prereqVals": [
+            {"algorithm": "SHA", "valValue": "same"},
+            {"algorithm": "DRBG", "valValue": "A1234"},
+        ],
     }
     mapped = MlkemAlgorithmModule().to_nist_registration(
         registration,
@@ -42,10 +45,17 @@ def test_mapper_honors_custom_identity_fields_and_preserves_prerequisites() -> N
         "revision": "FIPS203",
         "isSample": False,
         "parameterSets": ["ML-KEM-768"],
-        "prereqVals": [{"algorithm": "SHA", "valValue": "A1234"}],
+        "prereqVals": [
+            {"algorithm": "SHA", "valValue": "same"},
+            {"algorithm": "DRBG", "valValue": "A1234"},
+        ],
     }
     registration["prereqVals"][0]["valValue"] = "changed"
-    assert mapped["prereqVals"][0]["valValue"] == "A1234"
+    registration["prereqVals"][1]["algorithm"] = "changed"
+    assert mapped["prereqVals"] == [
+        {"algorithm": "SHA", "valValue": "same"},
+        {"algorithm": "DRBG", "valValue": "A1234"},
+    ]
 
 
 def test_mapper_does_not_emit_server_policy_or_generation_controls() -> None:

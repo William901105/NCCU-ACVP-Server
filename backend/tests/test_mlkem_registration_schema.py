@@ -37,6 +37,36 @@ def test_registration_accepts_all_capabilities_and_prerequisites() -> None:
 
 
 @pytest.mark.parametrize(
+    ("algorithm", "val_value"),
+    [("SHA", "same"), ("DRBG", "123456")],
+)
+def test_registration_accepts_supported_prerequisite_algorithms(
+    algorithm: str,
+    val_value: str,
+) -> None:
+    payload = _registration()
+    payload["prereqVals"] = [{"algorithm": algorithm, "valValue": val_value}]
+
+    assert validate_registration(payload)["prereqVals"] == payload["prereqVals"]
+
+
+@pytest.mark.parametrize(
+    "algorithm",
+    ["AES", "SHA2", "SHA3", "HASH", "RBG", "ML-DSA", "ML-KEM", "sha", "drbg"],
+)
+def test_registration_rejects_unsupported_prerequisite_algorithms(algorithm: str) -> None:
+    payload = _registration()
+    payload["prereqVals"] = [{"algorithm": algorithm, "valValue": "same"}]
+
+    with pytest.raises(AcvpSchemaError) as exc_info:
+        validate_registration(payload)
+
+    assert exc_info.value.code == "invalid_prerequisite_algorithm"
+    assert exc_info.value.path == "$.prereqVals[0].algorithm"
+    assert "expected one of: DRBG, SHA" in exc_info.value.message
+
+
+@pytest.mark.parametrize(
     ("mutation", "code", "path"),
     [
         (lambda p: p.update(algorithm="ML-DSA"), "unsupported_algorithm", "$.algorithm"),

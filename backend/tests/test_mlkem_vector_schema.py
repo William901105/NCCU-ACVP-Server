@@ -20,14 +20,66 @@ def test_vector_accepts_nist_array_container(load_mlkem_fixture) -> None:
     assert normalized["acvVersion"] == "1.0"
 
 
-def test_key_check_accepts_intentionally_malformed_encoded_key_length(
+@pytest.mark.parametrize(
+    ("function", "field"),
+    [
+        ("encapsulationKeyCheck", "ek"),
+        ("decapsulationKeyCheck", "dk"),
+    ],
+)
+def test_key_checks_accept_intentionally_abnormal_encoded_key_lengths(
     load_mlkem_fixture,
+    function: str,
+    field: str,
 ) -> None:
     prompt = load_mlkem_fixture("encapDecap", "prompt")
-    group = next(g for g in prompt["testGroups"] if g["function"] == "encapsulationKeyCheck")
-    group["tests"] = [{"tcId": 9000, "ek": "AA"}]
+    group = next(g for g in prompt["testGroups"] if g["function"] == function)
+    group["tests"] = [{"tcId": 9000, field: "AA"}]
     prompt["testGroups"] = [group]
-    assert validate_vector_set(prompt)["testGroups"][0]["tests"][0]["ek"] == "AA"
+    assert validate_vector_set(prompt)["testGroups"][0]["tests"][0][field] == "AA"
+
+
+@pytest.mark.parametrize(
+    ("function", "field"),
+    [
+        ("encapsulationKeyCheck", "ek"),
+        ("decapsulationKeyCheck", "dk"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        (lambda test, field: test.update({field: ""}), "invalid_hex"),
+        (lambda test, field: test.update({field: "A"}), "invalid_hex"),
+        (lambda test, field: test.update({field: "GG"}), "invalid_hex"),
+        (lambda test, field: test.update(unexpected="AA"), "unknown_field"),
+        (lambda test, field: test.pop(field), "missing_required_field"),
+    ],
+)
+def test_key_checks_reject_malformed_inputs_and_field_shapes(
+    load_mlkem_fixture,
+    function: str,
+    field: str,
+    mutation,
+    code: str,
+) -> None:
+    prompt = load_mlkem_fixture("encapDecap", "prompt")
+    group = next(g for g in prompt["testGroups"] if g["function"] == function)
+    group["tests"] = [{"tcId": 9000, field: "AA"}]
+    prompt["testGroups"] = [group]
+    mutation(group["tests"][0], field)
+
+    _assert_error(prompt, code)
+
+
+@pytest.mark.parametrize("function", ["encapsulationKeyCheck", "decapsulationKeyCheck"])
+def test_key_checks_reject_wrong_test_type(load_mlkem_fixture, function: str) -> None:
+    prompt = load_mlkem_fixture("encapDecap", "prompt")
+    group = next(g for g in prompt["testGroups"] if g["function"] == function)
+    group["testType"] = "AFT"
+    prompt["testGroups"] = [group]
+
+    _assert_error(prompt, "invalid_test_type")
 
 
 @pytest.mark.parametrize(

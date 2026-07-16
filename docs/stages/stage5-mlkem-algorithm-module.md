@@ -47,6 +47,9 @@ Both modes require `algorithm`, `mode`, `revision`, and a non-empty, unique
 `algorithm`/`valValue` string pair. Only `encapDecap` accepts a non-empty,
 unique `functions` array. Unknown fields, values, duplicates, and malformed
 types are rejected with `AcvpSchemaError` codes and exact JSON paths.
+ML-KEM `prereqVals` accepts only the official prerequisite algorithm
+identifiers `SHA` and `DRBG`. `valValue` remains a non-empty validation
+identifier or `same`.
 
 Capability negotiation preserves client ordering and returns only capabilities
 that the validated registration requested. It does not add parameter sets or
@@ -108,12 +111,16 @@ cryptographic evidence are unchanged.
 ## Verification
 
 - Stage 4 preflight: `6 passed`
-- focused ML-KEM and registry tests: `82 passed`
-- full backend test suite: `137 passed`
+- focused ML-KEM tests: `96 passed`
+- full backend test suite: `161 passed`
 - frontend dependency install and production build: passed (`tsc --noEmit` and
   Vite production build)
 - Stage 4 keyGen and encapDecap registration/prompt/expected-results fixtures
   are consumed directly as immutable golden inputs
+- prerequisite allowlist coverage accepts `SHA` and `DRBG` and rejects aliases
+- Stage 4 tracked logs have an expanded Orleans/runtime failure-token guard
+- symmetric key-check tests accept abnormal encoded-key lengths while rejecting
+  malformed hexadecimal input and invalid field shapes
 
 The Stage 5 suite covers module delegation, descriptor metadata, registration,
 capability negotiation, prompts, responses, NIST mapping, validation

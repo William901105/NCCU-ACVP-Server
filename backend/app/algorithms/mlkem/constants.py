@@ -13,6 +13,7 @@ FUNCTIONS = {
     "decapsulationKeyCheck",
 }
 TEST_TYPES = {"AFT", "VAL"}
+PREREQUISITE_ALGORITHMS = {"SHA", "DRBG"}
 
 FUNCTION_TEST_TYPES = {
     "keyGen": "AFT",

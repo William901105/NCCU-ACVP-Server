@@ -165,7 +165,11 @@ def validate_unique_int_ids(items: Sequence[Any], id_field: str, path: str) -> N
         seen.add(identifier)
 
 
-def validate_prereq_vals(obj: Dict[str, Any], path: str) -> None:
+def validate_prereq_vals(
+    obj: Dict[str, Any],
+    path: str,
+    allowed_algorithms: Optional[Set[str]] = None,
+) -> None:
     if "prereqVals" not in obj:
         return
     prereq_path = child_path(path, "prereqVals")
@@ -174,11 +178,17 @@ def validate_prereq_vals(obj: Dict[str, Any], path: str) -> None:
         item_path = child_path(prereq_path, index)
         prereq = require_object(item, item_path)
         require_allowed_fields(prereq, {"algorithm", "valValue"}, item_path)
-        require_string(
-            require_field(prereq, "algorithm", item_path),
-            child_path(item_path, "algorithm"),
-            non_empty=True,
-        )
+        algorithm_path = child_path(item_path, "algorithm")
+        algorithm = require_field(prereq, "algorithm", item_path)
+        if allowed_algorithms is None:
+            require_string(algorithm, algorithm_path, non_empty=True)
+        else:
+            require_enum(
+                algorithm,
+                allowed_algorithms,
+                algorithm_path,
+                code="invalid_prerequisite_algorithm",
+            )
         require_string(
             require_field(prereq, "valValue", item_path),
             child_path(item_path, "valValue"),

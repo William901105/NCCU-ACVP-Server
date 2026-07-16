@@ -14,10 +14,18 @@ NIST_SOURCE_COMMIT = "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0"
 REFERENCE_COMMIT = "61b549e51ca18c75c303cf83f6fb58f40c1de700"
 PARAMETER_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}
 FORBIDDEN_PATH_TOKENS = ("/root/", "/home/", "/Users/", "C:\\", "D:\\", "/tmp/nccu-acvp-stage4")
-FORBIDDEN_ORLEANS_MESSAGES = (
-    "Failed initializing Orleans client connection",
-    "System.TimeoutException",
-    "Response did not arrive on time",
+FORBIDDEN_ORLEANS_TOKENS = (
+    "failed initializing orleans client connection",
+    "system.timeoutexception",
+    "response did not arrive on time",
+    "dashboard address already in use",
+    "address already in use",
+    "failed to bind",
+    "bind failed",
+    "unhandled exception",
+    "fatal exception",
+    "connection refused",
+    "orleans client initialization failed",
 )
 
 CASES = {
@@ -115,8 +123,12 @@ def test_mlkem_capture_logs_record_successful_nist_check_and_generate() -> None:
             assert (fixture_root / f"{phase}.exitcode.txt").read_text(encoding="utf-8") == "0\n"
             assert f"Running in {phase.title()} mode for ML-KEM-{nist_mode}-FIPS203" in stdout
             assert stderr == ""
-            assert all(message not in stdout for message in FORBIDDEN_ORLEANS_MESSAGES)
-            assert all(message not in stderr for message in FORBIDDEN_ORLEANS_MESSAGES)
+            combined_log = f"{stdout}\n{stderr}".lower()
+            for token in FORBIDDEN_ORLEANS_TOKENS:
+                assert token not in combined_log, (
+                    "Stage 4 evidence contains forbidden runtime failure token "
+                    f"{token!r}: {fixture_name}/{phase}"
+                )
 
 
 def test_mlkem_manifests_pin_source_provenance_and_artifact_hashes() -> None:

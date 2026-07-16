@@ -14,7 +14,14 @@ from .common import (
     require_string,
     validate_prereq_vals,
 )
-from .constants import ALGORITHM, FUNCTIONS, MODES, PARAMETER_SETS, REVISION
+from .constants import (
+    ALGORITHM,
+    FUNCTIONS,
+    MODES,
+    PARAMETER_SETS,
+    PREREQUISITE_ALGORITHMS,
+    REVISION,
+)
 from .normalize import normalize_acvp_container
 
 
@@ -56,7 +63,11 @@ def validate_registration(payload: Any) -> Dict[str, Any]:
         "$.parameterSets",
         code="invalid_parameter_set",
     )
-    validate_prereq_vals(obj, "$")
+    validate_prereq_vals(
+        obj,
+        "$",
+        allowed_algorithms=PREREQUISITE_ALGORITHMS,
+    )
 
     if mode == "keyGen":
         require_absent(obj, "functions", "$", "mode is keyGen")

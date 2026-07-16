@@ -1,0 +1,21 @@
+{
+  "format": "sanitized route transcript summary; no cryptographic payloads",
+  "requests": [
+    {"method": "POST", "url": "/acvp/v1/testSessions", "status": 200, "state": "vectorReady"},
+    {"method": "POST", "url": "/acvp/v1/testSessions", "status": 200, "state": "capabilitiesAccepted", "autoGenerateVectorSets": false},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}", "status": 200},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets", "status": 200},
+    {"method": "POST", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/generate", "status": 200, "state": "vectorReady"},
+    {"method": "POST", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/generate", "status": 409, "error": "VECTOR_SETS_ALREADY_GENERATED"},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}", "status": 200, "state": "downloaded"},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected", "status": 200, "isSample": true},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected", "status": 403, "isSample": false},
+    {"method": "POST", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results", "status": 204},
+    {"method": "PUT", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results", "status": 204},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results", "status": 200},
+    {"method": "GET", "url": "/acvp/v1/testSessions/{sessionId}/results", "status": 200},
+    {"method": "POST", "url": "/acvp/v1/testSessions/{sessionId}/submit", "status": 409, "error": "VECTOR_SET_RESULTS_INCOMPLETE"},
+    {"method": "POST", "url": "/acvp/v1/testSessions/{sessionId}/submit", "status": 200, "state": "validated-or-failed"},
+    {"method": "PUT", "url": "/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/results", "status": 409, "error": "VECTOR_SET_ALREADY_FINALIZED"}
+  ]
+}

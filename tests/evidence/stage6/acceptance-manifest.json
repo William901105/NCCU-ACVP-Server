@@ -1,0 +1,26 @@
+{
+  "stage": 6,
+  "phase": "A",
+  "stageName": "mlkem-api-e2e",
+  "branch": "feature/stage6-mlkem-api-e2e",
+  "baseStrictCommit": "0f9550a185870679d511ec1ca7f62df2464325b1",
+  "featureStartCommit": "0f9550a185870679d511ec1ca7f62df2464325b1",
+  "phaseAFreezeCommit": "the commit containing this manifest; pinned by SHA in the Phase B audit report",
+  "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "runtime": {
+    "dotnetSdk": "8.0.422",
+    "dotnetRuntime": "8.0.28",
+    "python": "3.8.10",
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "artifactSha256": {
+    "genValAppRunnerDll": "0518ff36d535331d2e6c70c61dea612a0821a5aac5c8774a9be68d80bbc4771b",
+    "orleansServerHostDll": "3fd30461e04ad5ee5661cbf621a940a694e2fc666c642942c5523f170d8a72c2",
+    "stage4KeyGenManifest": "c406d0ee29516c0631afa7b2002cef689b464788719c50371868abcc01f9c94d",
+    "stage4EncapDecapManifest": "472b0dc86192fa7c547728258260e45fe28ca379dfee57ddf613dc1cdaa42c2a"
+  },
+  "testOnlySampleResponseSource": true,
+  "productionOracle": false,
+  "iut": false
+}

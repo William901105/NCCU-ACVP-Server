@@ -14,7 +14,7 @@ from ..models import (
     AcvpV1VectorSetGenerateRequest,
     AcvpV1VectorSetResultsSubmitRequest,
 )
-from .envelope import envelope_response
+from .envelope import acvp_envelope, envelope_response
 from .errors import acvp_error_response
 from .paging import parse_paging_params
 from .service import (
@@ -124,7 +124,10 @@ def generate_acvp_v1_test_session_vector_sets(
 
 @router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}")
 def get_acvp_v1_test_session_vector_set(sessionId: str, vectorSetId: str) -> Any:
-    return _canonical_response(get_vector_set_prompt(sessionId, vectorSetId))
+    return _canonical_response(
+        get_vector_set_prompt(sessionId, vectorSetId),
+        add_server_metadata=False,
+    )
 
 
 @router.delete("/testSessions/{sessionId}/vectorSets/{vectorSetId}")
@@ -134,7 +137,10 @@ def delete_acvp_v1_test_session_vector_set(sessionId: str, vectorSetId: str) -> 
 
 @router.get("/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected")
 def get_acvp_v1_test_session_vector_set_expected(sessionId: str, vectorSetId: str) -> Any:
-    return _canonical_response(get_vector_set_expected(sessionId, vectorSetId))
+    return _canonical_response(
+        get_vector_set_expected(sessionId, vectorSetId),
+        add_server_metadata=False,
+    )
 
 
 @router.post("/testSessions/{sessionId}/vectorSets/{vectorSetId}/results")
@@ -239,7 +245,7 @@ def get_acvp_v1_vector_set_expected_results(vectorSetId: str) -> Any:
     return _canonical_response(get_vector_set_expected_results(vectorSetId))
 
 
-def _canonical_response(value: Any) -> Any:
+def _canonical_response(value: Any, *, add_server_metadata: bool = True) -> Any:
     if isinstance(value, Response) and not isinstance(value, JSONResponse):
         return value
     if isinstance(value, JSONResponse):
@@ -251,7 +257,7 @@ def _canonical_response(value: Any) -> Any:
             content=envelope_response(content),
             headers=_forwarded_headers(value),
         )
-    return envelope_response(value)
+    return envelope_response(value) if add_server_metadata else acvp_envelope(value)
 
 
 def _is_acvp_envelope(content: Any) -> bool:

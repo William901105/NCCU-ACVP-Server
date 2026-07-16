@@ -1,4 +1,5 @@
 fastapi>=0.111,<1
 uvicorn[standard]>=0.29,<1
 pydantic>=2,<3
+httpx>=0.27,<1
 pytest>=7.4,<8.3

@@ -1,0 +1,23 @@
+{
+  "provider": "NIST ACVP-Server GenValAppRunner",
+  "executionBackend": "nist-genval",
+  "nistSourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "liveGate": "NCCU_ACVP_LIVE_GENVAL=1",
+  "caseResultGranularity": "tgId and tcId preserved by NIST validation and server normalization",
+  "acceptance": {
+    "keyGenGeneration": "passed",
+    "keyGenKnownGoodSampleResponse": "passed",
+    "keyGenSchemaValidCryptographicFailure": "passed",
+    "encapDecapGeneration": "passed",
+    "encapDecapKnownGoodSampleResponse": "passed",
+    "encapsulationFailureParity": "passed",
+    "decapsulationFailureParity": "passed",
+    "encapsulationKeyCheckFailureParity": "passed",
+    "decapsulationKeyCheckFailureParity": "passed",
+    "sampleExpectedAccess": "passed",
+    "nonSampleExpectedDenial": "passed",
+    "twoModeSessionAggregate": "passed",
+    "noLocalFallback": "passed",
+    "orleansUnavailableBoundedAtomicError": "passed"
+  }
+}

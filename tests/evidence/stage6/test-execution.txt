@@ -1,0 +1,10 @@
+Phase A preflight backend: 161 passed in 39.04s
+Phase A Stage 4 focused: 6 passed in 1.86s
+Phase A Stage 5 focused: 96 passed in 21.52s
+Phase A deterministic Stage 6 API/errors: 13 passed in 7.80s
+Phase A provider timeout regression: 3 passed in 0.66s
+Phase A live NIST normal gate: 3 passed, 1 skipped in 59.38s
+Phase A live NIST unavailable gate: 1 passed, 3 deselected in 6.62s
+Phase A full backend regression: 175 passed, 4 skipped in 43.96s
+Phase A frontend npm ci: 67 packages installed; audit reported 1 moderate and 1 high existing vulnerability
+Phase A frontend production build: passed; 34 modules transformed

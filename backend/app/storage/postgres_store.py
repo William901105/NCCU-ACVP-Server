@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, MutableMapping, Optional
 
@@ -88,7 +89,7 @@ CREATE TABLE IF NOT EXISTS acvp_vector_sets (
 );
 
 CREATE TABLE IF NOT EXISTS acvp_requests (
-    request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id BIGSERIAL PRIMARY KEY,
     test_session_id TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL,
     certification_json TEXT NOT NULL,
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS acvp_requests (
 );
 
 CREATE TABLE IF NOT EXISTS state_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     from_status TEXT,
@@ -119,62 +120,80 @@ CREATE INDEX IF NOT EXISTS idx_state_events_entity ON state_events(entity_type, 
 """
 
 
-def get_db_path() -> Path:
-    configured = os.environ.get("ACVP_DB_PATH")
-    if configured:
-        return Path(configured).expanduser()
-    backend_root = Path(__file__).resolve().parents[2]
-    return backend_root / "data" / "acvp.sqlite3"
+def get_database_url() -> str:
+    configured = (
+        os.environ.get("DATABASE_URL")
+        or os.environ.get("ACVP_DATABASE_URL")
+    )
+    if not configured:
+        raise RuntimeError(
+            "DATABASE_URL or ACVP_DATABASE_URL must be configured for PostgreSQL."
+        )
+    return configured
+
+
+def _translate_qmark(query: str) -> str:
+    return query.replace("?", "%s")
+
+
+class _ConnectionAdapter:
+    def __init__(self, connection: Any):
+        self._connection = connection
+
+    def execute(self, query: str, params: Any = None):
+        translated = _translate_qmark(query)
+        if params is None:
+            return self._connection.execute(translated)
+        return self._connection.execute(translated, params)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._connection.close()
+
+
+def _open_connection(*, autocommit: bool = False) -> _ConnectionAdapter:
+    connection = psycopg.connect(
+        get_database_url(),
+        autocommit=autocommit,
+        row_factory=dict_row,
+    )
+    return _ConnectionAdapter(connection)
 
 
 def init_db() -> None:
-    path = get_db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    conn.row_factory = sqlite3.Row
+    conn = _open_connection(autocommit=True)
     try:
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.executescript(SCHEMA_SQL)
+        for statement in SCHEMA_SQL.split(";"):
+            statement = statement.strip()
+            if statement:
+                conn.execute(statement)
         _migrate_public_vs_ids(conn)
-        conn.commit()
     finally:
         conn.close()
 
 
 def reset_db_for_tests() -> None:
-    path = get_db_path()
-
-    if path.exists():
-        try:
-            path.unlink()
-        except PermissionError:
-            # On Windows, a recently used SQLite connection may temporarily
-            # retain the file handle. Reset the schema in place instead.
-            conn = sqlite3.connect(str(path))
-            try:
-                conn.execute("PRAGMA foreign_keys = OFF")
-                for table in (
-                    "state_events",
-                    "acvp_requests",
-                    "acvp_vector_sets",
-                    "acvp_sessions",
-                    "demo_sessions",
-                    "imports",
-                ):
-                    conn.execute(f'DROP TABLE IF EXISTS "{table}"')
-                conn.commit()
-            finally:
-                conn.close()
-
+    conn = _open_connection(autocommit=True)
+    try:
+        conn.execute("DROP TABLE IF EXISTS state_events CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_requests CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_vector_sets CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_sessions CASCADE")
+        conn.execute("DROP TABLE IF EXISTS demo_sessions CASCADE")
+        conn.execute("DROP TABLE IF EXISTS imports CASCADE")
+    finally:
+        conn.close()
     init_db()
 
-def connect() -> sqlite3.Connection:
-    init_db()
-    conn = sqlite3.connect(str(get_db_path()))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
 
+def connect() -> _ConnectionAdapter:
+    init_db()
+    return _open_connection()
 
 def save_acvp_session(session: Dict[str, Any]) -> None:
     now = utc_now_iso()
@@ -252,7 +271,7 @@ def list_acvp_sessions(
             sql += " OFFSET ?"
             params.append(offset)
     elif offset is not None:
-        sql += " LIMIT -1 OFFSET ?"
+        sql += " LIMIT ALL OFFSET ?"
         params.append(offset)
     with _read_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
@@ -441,10 +460,14 @@ def create_acvp_request(
                 test_session_id, status, certification_json, message,
                 approved_url, created_at, updated_at
             ) VALUES (?, ?, ?, ?, NULL, ?, ?)
+            RETURNING request_id
             """,
             (test_session_id, status, json_dumps(certification), message, now, now),
         )
-        request_id = int(cursor.lastrowid)
+        row = cursor.fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create ACVP request resource")
+        request_id = int(row["request_id"])
     request = get_acvp_request(request_id)
     if request is None:
         raise RuntimeError("Failed to persist ACVP request resource")
@@ -662,7 +685,7 @@ def _list_all_acvp_vector_sets() -> List[Dict[str, Any]]:
     return [_row_to_acvp_vector_set(row) for row in rows]
 
 
-def _row_to_acvp_session(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_session(row: Dict[str, Any]) -> Dict[str, Any]:
     extra = json_loads(row["extra_json"], default={}) or {}
     vector_set_ids = json_loads(row["vector_set_ids_json"], default=[]) or []
     session = dict(extra)
@@ -695,7 +718,7 @@ def _row_to_acvp_session(row: sqlite3.Row) -> Dict[str, Any]:
     return session
 
 
-def _row_to_acvp_vector_set(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_vector_set(row: Dict[str, Any]) -> Dict[str, Any]:
     extra = json_loads(row["extra_json"], default={}) or {}
     vector_set = dict(extra)
     vector_set.update(
@@ -725,7 +748,7 @@ def _row_to_acvp_vector_set(row: sqlite3.Row) -> Dict[str, Any]:
     return vector_set
 
 
-def _row_to_acvp_request(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_request(row: Dict[str, Any]) -> Dict[str, Any]:
     request = {
         "requestId": int(row["request_id"]),
         "testSessionId": row["test_session_id"],
@@ -765,13 +788,23 @@ def _public_vs_id(
     return value
 
 
-def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
+def _migrate_public_vs_ids(conn: _ConnectionAdapter) -> None:
     columns = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(acvp_vector_sets)").fetchall()
+        row["column_name"]
+        for row in conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'acvp_vector_sets'
+            """
+        ).fetchall()
     }
+
     if "vs_id" not in columns:
-        conn.execute("ALTER TABLE acvp_vector_sets ADD COLUMN vs_id INTEGER")
+        conn.execute(
+            "ALTER TABLE acvp_vector_sets ADD COLUMN vs_id INTEGER"
+        )
 
     rows = conn.execute(
         """
@@ -780,22 +813,27 @@ def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
         WHERE vs_id IS NULL
         """
     ).fetchall()
+
     for row in rows:
         prompt = json_loads(row["prompt_json"], default=None)
         extra = json_loads(row["extra_json"], default={}) or {}
         summary = _safe_prompt_summary(prompt)
         value = summary.get("vsId")
+
         if value is None:
             value = extra.get("vsId")
+
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise RuntimeError(
                 "Cannot migrate ACVP vector record without a valid numeric vsId: "
                 f"{row['vector_set_id']}"
             )
+
         conn.execute(
             "UPDATE acvp_vector_sets SET vs_id = ? WHERE vector_set_id = ?",
             (value, row["vector_set_id"]),
         )
+
     try:
         conn.execute(
             """
@@ -803,11 +841,10 @@ def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
             ON acvp_vector_sets(test_session_id, vs_id)
             """
         )
-    except sqlite3.IntegrityError as exc:
+    except psycopg.IntegrityError as exc:
         raise RuntimeError(
             "Cannot migrate duplicate numeric vsId values within an ACVP test session"
         ) from exc
-
 
 def _json_or_none(value: Any) -> Optional[str]:
     if value is None:
@@ -822,9 +859,9 @@ def _extra_fields(record: Dict[str, Any], core_keys: set[str]) -> Dict[str, Any]
 class _ConnectionContext:
     def __init__(self, *, write: bool):
         self._write = write
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: Optional[_ConnectionAdapter] = None
 
-    def __enter__(self) -> sqlite3.Connection:
+    def __enter__(self) -> _ConnectionAdapter:
         self._conn = connect()
         return self._conn
 

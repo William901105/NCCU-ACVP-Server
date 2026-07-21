@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import os
+
+
+def _use_postgresql() -> bool:
+    backend = os.environ.get("ACVP_STORAGE_BACKEND", "").strip().lower()
+    return (
+        backend in {"postgres", "postgresql"}
+        or bool(os.environ.get("DATABASE_URL"))
+        or bool(os.environ.get("ACVP_DATABASE_URL"))
+    )
+
+
+if _use_postgresql():
+    from . import postgres_store as _backend
+else:
+    from . import sqlite_store as _backend
+
+
+init_db = _backend.init_db
+reset_db_for_tests = _backend.reset_db_for_tests
+
+ACVP_SKELETON_SESSION_STORE = _backend.ACVP_SKELETON_SESSION_STORE
+ACVP_SKELETON_VECTOR_SET_STORE = _backend.ACVP_SKELETON_VECTOR_SET_STORE
+
+create_acvp_request = _backend.create_acvp_request
+delete_acvp_session = _backend.delete_acvp_session
+delete_acvp_vector_sets_for_session = _backend.delete_acvp_vector_sets_for_session
+get_acvp_session = _backend.get_acvp_session
+get_acvp_request = _backend.get_acvp_request
+get_acvp_request_for_session = _backend.get_acvp_request_for_session
+get_acvp_vector_set = _backend.get_acvp_vector_set
+get_acvp_vector_set_by_vs_id = _backend.get_acvp_vector_set_by_vs_id
+list_acvp_sessions = _backend.list_acvp_sessions
+list_acvp_vector_sets_for_session = _backend.list_acvp_vector_sets_for_session
+list_state_events = _backend.list_state_events
+record_state_event = _backend.record_state_event
+save_acvp_request = _backend.save_acvp_request
+save_acvp_session = _backend.save_acvp_session
+save_acvp_vector_set = _backend.save_acvp_vector_set

@@ -196,7 +196,7 @@ def add_state_event(
     storage_identity = _state_event_storage_identity(entity)
     if storage_identity is not None:
         entity_type, entity_id = storage_identity
-        from ..storage.sqlite_store import record_state_event
+        from ..storage.store import record_state_event
 
         details: Dict[str, Any] = {"reason": reason}
         if metadata:

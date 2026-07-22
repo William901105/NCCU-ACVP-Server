@@ -79,7 +79,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8001 npm run dev
 # 瀏覽器開 http://127.0.0.1:5173
 ```
 
-## 測試迴圈（網頁版）
+## 測試迴圈 A：keyGen（網頁版）
 
 1. 演算法選 **FIPS 203 / ML-KEM**、模式 `keyGen`、參數集 `ML-KEM-512`，勾選
    **isSample**。
@@ -91,17 +91,70 @@ VITE_API_BASE_URL=http://127.0.0.1:8001 npm run dev
    python3 run_test.py \
      --prompt ~/Downloads/ML-KEM-keyGen-vs1-prompt.json \
      --response-dir ./response --variant pass --expect-mode keyGen
-   # → response/response_pass_keyGen.json  （每筆現在都有 ek / dk）
    ```
+   產生 `response/response_pass_keyGen.json`（每筆現在都有 `ek` / `dk`）。
 5. **Upload response JSON** → 選 `response_pass_keyGen.json`（**不是** prompt）。
 6. 點 **Submit response**，再點 **Refresh results**。
    - `unreceived` → `passed`；test session `passed: true`。✅
+
+參考數量：`ML-KEM-512` 單一參數集約 25 筆測試。
 
 ### 負向測試（試錯）
 
 同樣流程但改用 `--variant fail`，上傳 `response_fail_keyGen.json`，在**新的
 session** 提交。GenVal 會回 `disposition: fail`，第一筆會失敗
 （`EncapsulationKey does not match`）——證明驗證端確實會擋掉錯誤答案。
+
+## 測試迴圈 B：encapDecap（網頁版）
+
+`encapDecap` 才是 ML-KEM 的核心功能（金鑰封裝／解封裝）。**兩個模式都測過才算
+完整驗證 FIPS 203**，只測 `keyGen` 等於只驗證「會生鑰匙」。
+
+1. 演算法選 **FIPS 203 / ML-KEM**、模式 **`encapDecap`**、參數集 `ML-KEM-512`，
+   勾選 **isSample**，並**勾選 functions**（建議四個全勾）：
+   - `encapsulation`
+   - `decapsulation`
+   - `encapsulationKeyCheck`
+   - `decapsulationKeyCheck`
+
+   > `encapDecap` 的 function 清單**不可為空**，這點與 `keyGen` 不同。
+
+2. **建立 test session** → `vectorReady`。
+3. **下載 prompt**（例如 `ML-KEM-encapDecap-vs1-prompt.json`；檔案會比 keyGen
+   大不少，約 150 KB 是正常的）。
+4. **用 IUT harness 跑這份 prompt**：
+   ```bash
+   cd ~/Desktop/NCCU-ACVP-Server/IUT-tests/mlkem-native
+   python3 run_test.py \
+     --prompt ~/Downloads/ML-KEM-encapDecap-vs1-prompt.json \
+     --response-dir ./response --variant pass --expect-mode encapDecap
+   ```
+   產生 `response/response_pass_encapDecap.json`。也可以用包裝腳本，效果相同：
+   ```bash
+   python3 run_encapdecap.py --prompt ~/Downloads/ML-KEM-encapDecap-vs1-prompt.json
+   ```
+5. **Upload response JSON** → 選 `response_pass_encapDecap.json`。
+6. **Submit response** → **Refresh results** → `passed`。✅
+
+參考數量：`ML-KEM-512` + 四個 function 約 **4 個測試組、55 筆**，其中
+encapsulation 25 筆（輸出 `c`,`k`）、decapsulation 10 筆（輸出 `k`）、
+兩種 keyCheck 共 20 筆（輸出 `testPassed`）。
+
+### 關於 `--expect-mode`
+
+這是**選用的安全檢查**，不影響運算。harness 會自己從 prompt 讀出 mode；加了
+`--expect-mode` 只是多一道「拿錯檔案就報錯」的保險：
+
+```
+prompt 是 encapDecap + --expect-mode keyGen → error: prompt mode 'encapDecap'
+does not match expected mode 'keyGen'
+```
+
+不加也可以，harness 一樣會自動判斷並輸出對應檔名：
+
+```bash
+python3 run_test.py --prompt ~/Downloads/ML-KEM-encapDecap-vs1-prompt.json
+```
 
 ## 測試迴圈（curl 版，不用開前端）
 
@@ -121,6 +174,15 @@ curl -s -X POST $BASE/acvp/v1/testSessions/$SID/vectorSets/1/results \
   -H "Content-Type: application/json" --data @/tmp/sub.json > /dev/null
 curl -s $BASE/acvp/v1/testSessions/$SID/vectorSets/1/results | python3 -m json.tool | head -20
 #   → disposition: "passed"
+```
+
+要改測 `encapDecap`，只要把上面第一段的註冊物件換成下面這個，其餘流程相同
+（記得把 `--expect-mode` 與檔名的 `keyGen` 一併改成 `encapDecap`）：
+
+```json
+{"algorithm":"ML-KEM","revision":"FIPS203","mode":"encapDecap",
+ "parameterSets":["ML-KEM-512"],
+ "functions":["encapsulation","decapsulation","encapsulationKeyCheck","decapsulationKeyCheck"]}
 ```
 
 ## harness 涵蓋的模式與函式
@@ -151,3 +213,5 @@ function，然後對下載的 prompt 跑 `run_test.py --expect-mode encapDecap`�
 | Orleans 終端機「卡住不動」 | 它是伺服器，本來就這樣 | 讓它開著，用其他終端機操作 |
 | 驗證一直顯示 `unreceived` | 還沒提交 response，或把 prompt 當 response 上傳 | 上傳 harness 產生的 **response**，再按 Submit |
 | 第一筆失敗 `EncapsulationKey does not match` | 你上傳的是 `fail` 變體 | 負向測試的預期結果；要看 pass 就用 `pass` 變體 |
+| `zsh: command not found: #` | 把本文件裡 `#` 開頭的**註解行**一起貼進終端機了（zsh 互動模式預設不把 `#` 當註解） | 無害，可忽略；貼指令時跳過 `#` 開頭的行 |
+| `error: prompt mode 'X' does not match expected mode 'Y'` | `--expect-mode` 與 prompt 實際模式不符（拿錯 prompt 檔） | 改用正確的 prompt，或把 `--expect-mode` 改對／直接不加 |

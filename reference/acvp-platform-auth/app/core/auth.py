@@ -1,0 +1,85 @@
+import time
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from app.core.config import get_settings
+
+# auto_error=False: we raise 401 ourselves below rather than relying on
+# HTTPBearer's built-in behavior, which has changed status codes for a
+# missing header across fastapi versions (403 in some, 401 in others).
+# The spec (12.3.2) requires 401 for a missing/unusable JWT.
+_bearer = HTTPBearer(auto_error=False)
+
+
+def _require_credentials(
+    creds: HTTPAuthorizationCredentials | None,
+) -> HTTPAuthorizationCredentials:
+    if creds is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+    return creds
+
+
+def create_access_token(subject: str) -> str:
+    s = get_settings()
+    now = int(time.time())
+    payload = {
+        "iss": s.jwt_issuer,
+        "sub": subject,
+        "iat": now,
+        "nbf": now,
+        "exp": now + s.jwt_expire_seconds,
+    }
+    return jwt.encode(payload, s.jwt_secret, algorithm=s.jwt_alg)
+
+
+def decode_token(token: str, *, verify_exp: bool = True) -> dict:
+    s = get_settings()
+    try:
+        # `algorithms` is an allow-list: an `alg: none` token can never be accepted.
+        # The four spec-required claims must be present (spec 12.3), and iss is
+        # verified. verify_exp is relaxed only for renewal/refresh of expired tokens
+        # — the claim must still be present, just not enforced as unexpired.
+        return jwt.decode(
+            token,
+            s.jwt_secret,
+            algorithms=[s.jwt_alg],
+            issuer=s.jwt_issuer,
+            options={"require": ["iss", "nbf", "exp", "iat"], "verify_exp": verify_exp},
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"invalid token: {exc.__class__.__name__}",
+        )
+
+
+def current_subject(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> str:
+    creds = _require_credentials(creds)
+    return decode_token(creds.credentials).get("sub", "")
+
+
+def require_session_access(
+    testSessionId: int,
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> int:
+    """Authorize a session-scoped request.
+
+    Spec: the accessToken issued per test session MUST be supplied to access that
+    Test Session. Only that session's own token (sub == "session:{id}") is
+    accepted here — the shared login token and other sessions' tokens are
+    rejected with 403. decode_token already rejects alg:none / bad-sig / expired.
+
+    The path parameter is named `testSessionId` to match the spec's URI hierarchy.
+    """
+    creds = _require_credentials(creds)
+    sub = decode_token(creds.credentials).get("sub")
+    if sub != f"session:{testSessionId}":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="access token is not authorized for this test session",
+        )
+    return testSessionId

@@ -86,17 +86,7 @@ export default function App() {
   const activeVectorSummary =
     vectorSets.find((vector) => vector.vsId === activeVectorSetId) ?? null;
   const activeVectorIsSample = vectorIsSample(activeVectorSet, activeSession);
-  const diagnosticReportAvailable = Boolean(
-    vectorResult &&
-      (
-        vectorResult.tests.some((test) => {
-          const result = test.result?.trim().toLowerCase();
-          return result === "fail" || result === "failed";
-        }) ||
-        ["fail", "failed"].includes(vectorResult.disposition.trim().toLowerCase()) ||
-        activeSession?.passed === false
-      )
-  );
+  const diagnosticReportAvailable = Boolean(vectorResult);
 
   const validationTotalTests = vectorResult?.tests.length ?? 0;
   const validationPassedTests =
@@ -669,8 +659,8 @@ export default function App() {
               disabled={!diagnosticReportAvailable}
               title={
                 diagnosticReportAvailable
-                  ? "Print failure diagnostics"
-                  : "Diagnostic Report is available only when validation fails."
+                  ? "Print detailed validation report"
+                  : "Diagnostic Report is available after validation results are loaded."
               }
             >
               Print Diagnostic Report

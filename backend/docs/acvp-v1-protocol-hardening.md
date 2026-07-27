@@ -136,7 +136,7 @@ Canonical vector set results routes return:
 ]
 ```
 
-Canonical `GET /results` no longer returns top-level `validationResult` or `report`. Those local artifacts remain stored in SQLite and may be exposed through local/debug behavior or flat compatibility aliases.
+Canonical `GET /results` no longer returns top-level `validationResult` or `report`. Those local artifacts remain stored in PostgreSQL and may be exposed through local/debug behavior or flat compatibility aliases.
 
 Overall disposition mapping:
 
@@ -179,7 +179,7 @@ or in a NIST-style ACVP submission envelope:
 ]
 ```
 
-The route removes `showExpected` before ML-DSA response schema validation, stores the boolean on the vector set, and persists the derived `acvpResults` in SQLite. When `showExpected=true`, failing, missing, malformed, and extra test results include `expected` and `provided` objects when available. When `showExpected=false`, those objects are omitted. For keyGen this can expose `sk` in expected/provided data for failing cases; that is local sample/skeleton behavior and should not be treated as production disclosure policy.
+The route removes `showExpected` before ML-DSA response schema validation, stores the boolean on the vector set, and persists the derived `acvpResults` in PostgreSQL. When `showExpected=true`, failing, missing, malformed, and extra test results include `expected` and `provided` objects when available. When `showExpected=false`, those objects are omitted. For keyGen this can expose `sk` in expected/provided data for failing cases; that is local sample/skeleton behavior and should not be treated as production disclosure policy.
 
 ## Paging And Query Parameters
 

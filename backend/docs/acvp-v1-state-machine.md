@@ -1,6 +1,6 @@
 # ACVP v1 Local State Machine
 
-Phase 3-5 adds a formal local state machine for `/acvp/v1` test sessions and vector sets. Phase 4-1 persists that local state machine in SQLite. It is aligned with the NIST ACVP Protocol Specification sections for Test Sessions, Vector Sets, paging/query parameters, and errors where the local skeleton has matching resources. It is not a production ACVP server.
+Phase 3-5 adds a formal local state machine for `/acvp/v1` test sessions and vector sets. The current implementation persists that state machine in PostgreSQL. It is aligned with the NIST ACVP Protocol Specification sections for Test Sessions, Vector Sets, paging/query parameters, and errors where the local skeleton has matching resources. It is not a production ACVP server.
 
 References:
 
@@ -23,7 +23,7 @@ Every `/acvp/v1` response still includes:
 
 Implemented as local skeleton behavior:
 
-- SQLite-backed testSession/vectorSet lifecycle
+- PostgreSQL-backed testSession/vectorSet lifecycle
 - deterministic vector generation from negotiated ML-DSA capabilities
 - vector download marking
 - vector result submission with synchronous local validation
@@ -31,7 +31,7 @@ Implemented as local skeleton behavior:
 - soft cancel for sessions and vector sets
 - configurable `expiresInSeconds`
 - state history events on sessions and vector sets
-- SQLite `state_events` rows for local transition history
+- PostgreSQL `state_events` rows for local transition history
 
 Not implemented in this phase:
 
@@ -120,7 +120,7 @@ Sessions and vector sets include `stateHistory`:
 }
 ```
 
-Required fields are `at`, `event`, `from`, `to`, and `reason`. Phase 4-1 also writes local transition records to the SQLite `state_events` table. Production systems still need audit retention policy, tamper controls, and operational hardening.
+Required fields are `at`, `event`, `from`, `to`, and `reason`. The current implementation writes local transition records to the PostgreSQL `state_events` table. Production systems still need audit retention policy, tamper controls, and operational hardening.
 
 ## Endpoints
 
@@ -233,13 +233,13 @@ Run tests:
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 pytest -q
-ACVP_DB_PATH=/tmp/acvp_phase41_test.sqlite3 pytest -q tests/test_acvp_v1_state_machine.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/test_acvp_v1_state_machine.py
 ```
 
 Start backend:
 
 ```bash
-ACVP_DB_PATH=/tmp/acvp_phase41_manual.sqlite3 \
+DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp \
   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```

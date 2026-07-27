@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,16 @@ while str(BACKEND_ROOT) in sys.path:
 sys.path.insert(0, str(BACKEND_ROOT))
 REPO_ROOT = BACKEND_ROOT.parent
 MLKEM_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "nist" / "mlkem"
+
+TEST_DATABASE_URL = os.environ.get("ACVP_TEST_DATABASE_URL")
+if not TEST_DATABASE_URL:
+    raise RuntimeError(
+        "ACVP_TEST_DATABASE_URL must point to the dedicated PostgreSQL "
+        "test database, for example acvp_test."
+    )
+
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["ACVP_DATABASE_URL"] = TEST_DATABASE_URL
 
 
 def _ensure_backend_app_package() -> None:
@@ -50,15 +61,16 @@ _ensure_backend_app_package()
 
 
 @pytest.fixture(autouse=True)
-def isolated_sqlite_db(tmp_path, monkeypatch):
+def isolated_postgres_db(monkeypatch):
     _ensure_backend_app_package()
     try:
-        from app.storage.sqlite_store import reset_db_for_tests
+        from app.storage.postgres_store import reset_db_for_tests
     except ModuleNotFoundError:
         _force_backend_app_package()
-        from app.storage.sqlite_store import reset_db_for_tests
+        from app.storage.postgres_store import reset_db_for_tests
 
-    monkeypatch.setenv("ACVP_DB_PATH", str(tmp_path / "acvp_test.sqlite3"))
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.setenv("ACVP_DATABASE_URL", TEST_DATABASE_URL)
     reset_db_for_tests()
     yield
     reset_db_for_tests()

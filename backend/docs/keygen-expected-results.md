@@ -7,7 +7,7 @@ This backend currently supports:
 - `POST /api/oracle/mldsa/keygen/expected-results` for generating keyGen `expectedResults` from an ACVP-style keyGen prompt.
 - `POST /api/oracle/mldsa/expected-results` for generating keyGen, sigGen, or sigVer `expectedResults` from an ACVP-style prompt.
 - `POST /api/import/generated` and `POST /api/import/generated-and-validate` for generated expectedResults import flows.
-- `/api/demo/acvp/test-sessions` endpoints for a SQLite-backed local demo lifecycle.
+- `/api/demo/acvp/test-sessions` endpoints for a PostgreSQL-backed local demo lifecycle.
 - `POST /api/import/generated-keygen` for importing a prompt plus response while generating keyGen `expectedResults` server-side.
 - `POST /api/oracle/mldsa/siggen` for single-case internal and external sigGen oracle calls.
 - `POST /api/oracle/mldsa/sigver` for single-case internal and external sigVer oracle calls.
@@ -554,7 +554,7 @@ DELETE /api/demo/acvp/test-sessions/{sessionId}
 ```
 
 Responses are marked with `demoOnly=true` and `notProductionAcvp=true`. This
-is a SQLite-backed local demo, not a production ACVP server.
+is a PostgreSQL-backed local demo, not a production ACVP server.
 
 ## Current non-goals
 

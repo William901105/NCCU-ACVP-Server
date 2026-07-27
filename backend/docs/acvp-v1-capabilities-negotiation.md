@@ -1,6 +1,6 @@
 # ACVP v1 Capabilities Negotiation
 
-Phase 3-3 added a local ML-DSA registration/capabilities negotiation layer for the `/acvp/v1` skeleton. Phase 3-4 can use the negotiated plan to generate deterministic local vector sets, Phase 3-5 attaches those sessions to the local state machine, and Phase 4-1 persists them in SQLite. This remains based on the NIST ACVP Protocol Specification registration/capabilities exchange model and the NIST ACVP ML-DSA JSON Specification, and it is still not a production-ready ACVP server.
+Phase 3-3 added a local ML-DSA registration/capabilities negotiation layer for the `/acvp/v1` skeleton. Phase 3-4 can use the negotiated plan to generate deterministic local vector sets, Phase 3-5 attaches those sessions to the local state machine, and the current implementation persists them in PostgreSQL. This remains based on the NIST ACVP Protocol Specification registration/capabilities exchange model and the NIST ACVP ML-DSA JSON Specification, and it is still not a production-ready ACVP server.
 
 References:
 
@@ -56,7 +56,7 @@ The current schema treats length domains as bit domains. `messageLength` must st
 - prompt-based Phase 3-2 sessions with `prompt`
 - registration/capabilities Phase 3-3 sessions with `algorithms`
 
-With `autoGenerateVectorSets=false`, the server creates a SQLite-backed capabilities-only session with:
+With `autoGenerateVectorSets=false`, the server creates a PostgreSQL-backed capabilities-only session with:
 
 ```json
 {

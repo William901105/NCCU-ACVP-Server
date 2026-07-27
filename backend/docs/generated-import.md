@@ -6,7 +6,7 @@ expectedResults generator.
 This is still a local validation demo. It is not an ACVP production lifecycle,
 does not implement `/acvp/v1/testSessions`, and does not add registration
 negotiation, JWT, certificates, or production ACVP authentication. Phase 4-1
-stores imported/generated bundles, validation results, and reports in SQLite.
+stores imported/generated bundles, validation results, and reports in PostgreSQL.
 
 ## Endpoints
 
@@ -31,11 +31,11 @@ The backend:
 2. Generates expectedResults with `generate_expected_results_from_prompt()`.
 3. Validates the generated expectedResults schema.
 4. Validates the submitted response schema for the prompt mode.
-5. Stores the bundle in SQLite with `generatedExpectedResults: true`.
+5. Stores the bundle in PostgreSQL with `generatedExpectedResults: true`.
 6. Returns the normal `ImportSummary`.
 
 `POST /api/import/generated-and-validate` runs the same import path, immediately
-executes validation, stores the validation result and report in SQLite, and returns:
+executes validation, stores the validation result and report in PostgreSQL, and returns:
 
 ```json
 {
@@ -96,7 +96,7 @@ appear in `failureDetails` with reason `extra response test case`.
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase41_manual.sqlite3 \
+DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp \
   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -109,5 +109,5 @@ curl -s -X POST http://127.0.0.1:8000/api/import/generated-and-validate \
 ```
 
 The response should include `import`, `validationResult`, and `report`.
-Restarting the backend with the same `ACVP_DB_PATH` should preserve
+Restarting the backend with the same `DATABASE_URL` should preserve
 `GET /api/import/{importId}` and `GET /api/report/{importId}`.

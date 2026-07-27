@@ -1,7 +1,7 @@
 # Local ACVP-Like Demo Lifecycle
 
 Phase 2-9 added a demo lifecycle under `/api/demo/acvp`. Phase 4-1 persists
-that local lifecycle in SQLite.
+that local lifecycle in PostgreSQL.
 
 This is explicitly a local demo. It is not a production ACVP server and does
 not implement the official ACVP `/acvp/v1/testSessions` protocol. Responses
@@ -52,7 +52,7 @@ expectedResults data is needed.
 ```
 
 The backend validates the response schema against the prompt mode, stores it in
-the SQLite-backed session, and optionally runs validation immediately.
+the PostgreSQL-backed session, and optionally runs validation immediately.
 
 Matching responses return status `validated`. Responses with failed, missing,
 malformed, or extra cases return status `failed` with the validation summary.
@@ -101,7 +101,7 @@ submitted response data.
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase41_manual.sqlite3 \
+DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp \
   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 

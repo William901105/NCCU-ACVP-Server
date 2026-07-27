@@ -19,7 +19,7 @@ from app.acvp_protocol.routes import (
 )
 from app.genval import GenValConfigurationError
 from app.main import app
-from app.storage.sqlite_store import ACVP_SKELETON_VECTOR_SET_STORE, save_acvp_vector_set
+from app.storage.store import ACVP_SKELETON_VECTOR_SET_STORE, save_acvp_vector_set
 
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "nist" / "mldsa"

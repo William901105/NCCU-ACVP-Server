@@ -53,15 +53,15 @@ With this mapping:
 Phase 5-2 tests:
 
 ```text
-ACVP_DB_PATH=/tmp/acvp_phase52_test.sqlite3 pytest -q tests/conformance/test_mldsa_strict_schema.py
-ACVP_DB_PATH=/tmp/acvp_phase52_test.sqlite3 pytest -q tests/conformance/test_mldsa_shake_prehash.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_mldsa_strict_schema.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_mldsa_shake_prehash.py
 ```
 
 Regression tests should also include:
 
 ```text
-ACVP_DB_PATH=/tmp/acvp_phase52_test.sqlite3 pytest -q tests/conformance
-ACVP_DB_PATH=/tmp/acvp_phase52_full.sqlite3 pytest -q
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q
 ```
 
 ## Out Of Scope

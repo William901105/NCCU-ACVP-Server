@@ -5,6 +5,7 @@ import psycopg
 from psycopg.rows import dict_row
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, MutableMapping, Optional
+from urllib.parse import urlparse
 
 from ..acvp_parser import AcvpParseError, normalize_acvp_json, summarize_vector_set
 from .json_utils import json_dumps, json_loads, utc_now_iso
@@ -132,6 +133,21 @@ def get_database_url() -> str:
     return configured
 
 
+
+def _assert_test_database() -> None:
+    database_name = urlparse(get_database_url()).path.lstrip("/")
+    allowed_name = os.environ.get(
+        "ACVP_TEST_DATABASE_NAME",
+        "acvp_test",
+    )
+
+    if database_name != allowed_name:
+        raise RuntimeError(
+            "Refusing to reset PostgreSQL database "
+            f"{database_name!r}; expected test database {allowed_name!r}."
+        )
+
+
 def _translate_qmark(query: str) -> str:
     return query.replace("?", "%s")
 
@@ -178,6 +194,7 @@ def init_db() -> None:
 
 
 def reset_db_for_tests() -> None:
+    _assert_test_database()
     conn = _open_connection(autocommit=True)
     try:
         conn.execute("DROP TABLE IF EXISTS state_events CASCADE")

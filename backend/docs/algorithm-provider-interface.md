@@ -86,12 +86,12 @@ Run the provider-focused tests:
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase53_test.sqlite3 pytest -q tests/test_acvp_algorithm_provider.py
-ACVP_DB_PATH=/tmp/acvp_phase53_test.sqlite3 pytest -q tests/conformance/test_acvp_algorithm_provider_dispatch.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/test_acvp_algorithm_provider.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_acvp_algorithm_provider_dispatch.py
 ```
 
 Run existing conformance tests:
 
 ```bash
-ACVP_DB_PATH=/tmp/acvp_phase53_conformance.sqlite3 pytest -q tests/conformance
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance
 ```

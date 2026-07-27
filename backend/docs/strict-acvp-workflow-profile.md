@@ -149,10 +149,10 @@ Use `workflowProfile=local` for those local skeleton flows.
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
 
-ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acvp_strict_workflow_profile.py
-ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acvp_strict_expected_results.py
-ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acvp_strict_results_submission.py
-ACVP_DB_PATH=/tmp/acvp_phase54_test.sqlite3 pytest -q tests/conformance/test_acvp_strict_response_shapes.py
-ACVP_DB_PATH=/tmp/acvp_phase54_conformance.sqlite3 pytest -q tests/conformance
-ACVP_DB_PATH=/tmp/acvp_phase54_full.sqlite3 pytest -q
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_acvp_strict_workflow_profile.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_acvp_strict_expected_results.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_acvp_strict_results_submission.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance/test_acvp_strict_response_shapes.py
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q
 ```

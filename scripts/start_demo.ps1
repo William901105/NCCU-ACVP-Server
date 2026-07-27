@@ -60,7 +60,6 @@ try {
 
     $env:DATABASE_URL = "postgresql://acvp_app:$EncodedPassword@127.0.0.1:5432/acvp"
     $env:ACVP_DATABASE_URL = $env:DATABASE_URL
-    $env:ACVP_STORAGE_BACKEND = "postgresql"
     $env:ACVP_GENVAL_RUNNER_DLL = $RunnerDll
     $env:ACVP_GENVAL_ARTIFACT_ROOT = $ArtifactRoot
 

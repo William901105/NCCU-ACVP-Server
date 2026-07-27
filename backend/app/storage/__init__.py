@@ -1,2 +1,1 @@
-"""SQLite-backed storage for the local ACVP demo server."""
-
+"""PostgreSQL-backed storage for the NCCU ACVP server."""

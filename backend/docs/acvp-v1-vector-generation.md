@@ -1,6 +1,6 @@
 # ACVP v1 Vector Generation
 
-Phase 3-4 added deterministic local skeleton vector generation from negotiated ML-DSA capabilities. Phase 3-5 keeps that behavior and attaches it to the formal local testSession/vectorSet state machine. Phase 4-1 persists generated sessions, vector sets, submissions, results, reports, and state events in SQLite. Phase 5-1 adds an explicit `nist-conformance` generation profile for ML-DSA minimum-count and coverage testing. This is not a production-ready ACVP server.
+Phase 3-4 added deterministic local skeleton vector generation from negotiated ML-DSA capabilities. Phase 3-5 keeps that behavior and attaches it to the formal local testSession/vectorSet state machine. The current PostgreSQL-only storage persists generated sessions, vector sets, submissions, results, reports, requests, and state events. Phase 5-1 adds an explicit `nist-conformance` generation profile for ML-DSA minimum-count and coverage testing. This is not a production-ready ACVP server.
 
 References:
 
@@ -180,4 +180,4 @@ The local skeleton still does not include:
 - formal paging/query/error hardening
 - async or large submission handling
 
-See `backend/docs/acvp-v1-state-machine.md` for the supported local skeleton lifecycle. SQLite persistence is Phase 4-1, auth/JWT/mTLS remains Phase 4-2, paging/query/error hardening remains Phase 4-3, and async/large submission remains Phase 4-4.
+See `backend/docs/acvp-v1-state-machine.md` for the supported local skeleton lifecycle. PostgreSQL persistence is implemented; auth/JWT/mTLS remains Phase 4-2, paging/query/error hardening remains Phase 4-3, and async/large submission remains Phase 4-4.

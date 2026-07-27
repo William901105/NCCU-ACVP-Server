@@ -18,10 +18,8 @@ frontend/vite.config.d.ts
 *.log
 coverage/
 frontend/.vite/
-backend/data/*.sqlite3
 backend/data/*.db
 backend/data/acvp-sessions/
-*.sqlite3
 *.db
 frontend/.env.local
 frontend/..env.local.swp
@@ -29,3 +27,4 @@ frontend/.env.local.save
 
 # Native build artifacts
 backend/native/mldsa_oracle/bin/
+backend/data/

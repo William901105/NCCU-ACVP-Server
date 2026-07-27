@@ -1,6 +1,6 @@
 # ACVP v1 Skeleton
 
-Phase 3-2 added a formal `/acvp/v1` namespace as a local skeleton. Phase 3-3 through Phase 3-5 added local ML-DSA capabilities negotiation, deterministic vector generation, and a local test session/vector set state machine. Phase 4-1 stores sessions, vector sets, submissions, validation results, reports, and state events in SQLite.
+Phase 3-2 added a formal `/acvp/v1` namespace as a local skeleton. Phase 3-3 through Phase 3-5 added local ML-DSA capabilities negotiation, deterministic vector generation, and a local test session/vector set state machine. The current PostgreSQL-only storage persists sessions, vector sets, submissions, validation results, reports, requests, and state events.
 
 Phase 4-3 adds protocol hardening:
 
@@ -62,7 +62,7 @@ For debugging, canonical routes accept `profile=debug` or `includeLocalMetadata=
 | --- | --- | --- |
 | GET | `/acvp/v1/version` | Returns local skeleton protocol/version metadata in an ACVP envelope. |
 | GET | `/acvp/v1/algorithms` | Returns ML-DSA capability summary for the local implementation in an ACVP envelope. |
-| GET | `/acvp/v1/testSessions` | Lists SQLite-backed skeleton sessions with `status`, `limit`, and `offset` query hardening. |
+| GET | `/acvp/v1/testSessions` | Lists PostgreSQL-backed skeleton sessions with `status`, `limit`, and `offset` query hardening. |
 | POST | `/acvp/v1/testSessions` | Creates a local prompt-based skeleton session or a registration session that can generate vector sets. |
 | GET | `/acvp/v1/testSessions/{sessionId}` | Returns skeleton session detail and vector set metadata. |
 | GET | `/acvp/v1/testSessions/{sessionId}/vectorSets` | Lists vector sets for a skeleton session with `status`, `limit`, and `offset` query hardening. |
@@ -75,7 +75,7 @@ For debugging, canonical routes accept `profile=debug` or `includeLocalMetadata=
 | GET | `/acvp/v1/testSessions/{sessionId}/vectorSets/{vectorSetId}/expected` | NIST canonical expected result route name. In this local skeleton it returns generated `expectedResults`; production behavior still requires NIST workflow compliance. |
 | GET | `/acvp/v1/testSessions/{sessionId}/results` | Aggregates local vector set results. |
 | POST | `/acvp/v1/testSessions/{sessionId}/submit` | Local skeleton session-level submit-for-validation aggregate finalization. |
-| DELETE | `/acvp/v1/testSessions/{sessionId}` | Soft-cancels the SQLite-backed skeleton session and non-terminal vector sets. |
+| DELETE | `/acvp/v1/testSessions/{sessionId}` | Soft-cancels the PostgreSQL-backed skeleton session and non-terminal vector sets. |
 
 ## Flat Compatibility Aliases
 
@@ -185,7 +185,7 @@ Nested routes enforce session/vector set ownership. If a vector set does not bel
 
 `DELETE` performs a soft cancel, not a hard DB row delete. It transitions the vector set to `cancelled`, records a `state_events` row, and cancels the parent session when all vector sets are cancelled. Submitting results to cancelled or expired resources returns stable `409` skeleton errors.
 
-The default SQLite path remains `backend/data/acvp.sqlite3`; set `ACVP_DB_PATH=/path/to/acvp.sqlite3` to override it.
+PostgreSQL is the only supported storage backend. Set `DATABASE_URL` or `ACVP_DATABASE_URL` to the `acvp` database connection URL before starting the server.
 
 ## Remaining Deviations
 

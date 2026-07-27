@@ -21,7 +21,7 @@ from app.acvp_protocol.routes import (
     submit_acvp_v1_test_session_vector_set_results,
 )
 from app.main import acvp_request_id_middleware, app
-from app.storage.sqlite_store import (
+from app.storage.store import (
     ACVP_SKELETON_SESSION_STORE,
     ACVP_SKELETON_VECTOR_SET_STORE,
     save_acvp_session,

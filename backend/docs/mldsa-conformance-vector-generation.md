@@ -116,7 +116,7 @@ Run only these tests:
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase51_test.sqlite3 pytest -q tests/conformance
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q tests/conformance
 ```
 
 Run the full backend suite:
@@ -124,7 +124,7 @@ Run the full backend suite:
 ```bash
 cd NCCU-ACVP-Server/backend
 source .venv/bin/activate
-ACVP_DB_PATH=/tmp/acvp_phase51_test.sqlite3 pytest -q
+ACVP_TEST_DATABASE_URL=postgresql://acvp_app:<password>@127.0.0.1:5432/acvp_test pytest -q
 ```
 
 ## Out Of Scope

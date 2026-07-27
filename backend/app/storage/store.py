@@ -1,21 +1,6 @@
 from __future__ import annotations
 
-import os
-
-
-def _use_postgresql() -> bool:
-    backend = os.environ.get("ACVP_STORAGE_BACKEND", "").strip().lower()
-    return (
-        backend in {"postgres", "postgresql"}
-        or bool(os.environ.get("DATABASE_URL"))
-        or bool(os.environ.get("ACVP_DATABASE_URL"))
-    )
-
-
-if _use_postgresql():
-    from . import postgres_store as _backend
-else:
-    from . import sqlite_store as _backend
+from . import postgres_store as _backend
 
 
 init_db = _backend.init_db

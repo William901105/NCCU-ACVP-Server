@@ -476,3 +476,59 @@ def test_legacy_report_json_migrates_to_acvp_reports() -> None:
     assert report_rows[0]["vector_set_id"] == vector_id
     assert report_rows[0]["is_latest"] == 1
     assert json.loads(report_rows[0]["artifact_json"]) == artifact
+
+def test_existing_acvp_reports_table_adds_is_latest_column() -> None:
+    with _connect() as conn:
+        _drop_current_schema(conn)
+        _create_legacy_schema(conn)
+
+        conn.execute(
+            """
+            CREATE TABLE acvp_reports (
+                report_sequence BIGSERIAL PRIMARY KEY,
+                report_id TEXT NOT NULL UNIQUE,
+                vector_set_id TEXT NOT NULL,
+                test_session_id TEXT NOT NULL,
+                vs_id INTEGER NOT NULL,
+                schema_version TEXT NOT NULL,
+                artifact_type TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                disposition TEXT NOT NULL,
+                passed INTEGER NOT NULL DEFAULT 0,
+                publishable INTEGER NOT NULL DEFAULT 0,
+                response_sha256 TEXT NOT NULL,
+                artifact_sha256 TEXT NOT NULL,
+                artifact_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+    init_db()
+
+    with _connect() as conn:
+        columns = {
+            row["column_name"]
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'acvp_reports'
+                """
+            ).fetchall()
+        }
+        indexes = {
+            row["indexname"]
+            for row in conn.execute(
+                """
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename = 'acvp_reports'
+                """
+            ).fetchall()
+        }
+
+    assert "is_latest" in columns
+    assert "idx_acvp_reports_latest" in indexes

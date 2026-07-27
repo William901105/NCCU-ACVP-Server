@@ -142,6 +142,8 @@ CREATE INDEX IF NOT EXISTS idx_acvp_reports_vector_set
 ON acvp_reports(vector_set_id, report_sequence);
 CREATE INDEX IF NOT EXISTS idx_acvp_reports_session_vs
 ON acvp_reports(test_session_id, vs_id, report_sequence);
+ALTER TABLE acvp_reports
+ADD COLUMN IF NOT EXISTS is_latest INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_acvp_reports_latest
 ON acvp_reports(vector_set_id)
 WHERE is_latest = 1;

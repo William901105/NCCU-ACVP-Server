@@ -306,3 +306,96 @@ def test_two_mode_session_aggregate_incomplete_failed_passed_and_finalized(
         )
         assert all_pass_submit["status"] == "validated"
         assert all_pass_submit["summary"]["sessionPassed"] is True
+
+def test_validation_report_artifacts_are_persisted_and_queryable(
+    monkeypatch: Any,
+    tmp_path: Any,
+) -> None:
+    install_deterministic_genval(monkeypatch, tmp_path)
+
+    with TestClient(app) as client:
+        created = body(
+            client.post(
+                "/acvp/v1/testSessions",
+                json=session_request("keyGen"),
+            )
+        )
+        session_id = created["testSessionId"]
+        url = vector_url(session_id, created["vectorSetIds"][0])
+
+        client.get(url)
+        expected = body(client.get(f"{url}/expected"))
+
+        unavailable = client.get(f"{url}/reports")
+        assert unavailable.status_code == 409
+        assert error(unavailable)["code"] == "REPORT_NOT_AVAILABLE"
+
+        submitted = client.post(
+            f"{url}/results",
+            json={"response": deepcopy(expected)},
+        )
+        assert submitted.status_code == 204
+
+        first_store = body(client.get(f"{url}/reports"))
+        first_report = first_store["report"]
+        first_report_id = first_report["reportId"]
+
+        assert first_store["reportCount"] == 1
+        assert first_store["latestReportId"] == first_report_id
+        assert first_report["artifactType"] == "acvp-validation-report"
+        assert first_report["schemaVersion"] == "1.0"
+        assert first_report["testSessionId"] == session_id
+        assert first_report["vsId"] == expected["vsId"]
+        assert first_report["algorithm"] == "ML-KEM"
+        assert first_report["revision"] == "FIPS203"
+        assert first_report["mode"] == "keyGen"
+        serialized_report = json.dumps(first_store)
+        for forbidden in (
+            "vectorSetId",
+            "artifactPaths",
+            "internalProjection",
+            "expectedResults",
+        ):
+            assert forbidden not in serialized_report
+        assert first_report["disposition"] == "passed"
+        assert first_report["passed"] is True
+        assert first_report["publishable"] is True
+        assert first_report["summary"]["failed"] == 0
+        assert len(first_report["responseSha256"]) == 64
+        assert len(first_report["artifactSha256"]) == 64
+        assert "not a NIST/CAVP validation certificate" in first_report["disclaimer"]
+
+        wrong = deepcopy(expected)
+        changed_tc_id = mutate_first_keygen_case(wrong)
+
+        updated = client.put(
+            f"{url}/results",
+            json={"response": wrong},
+        )
+        assert updated.status_code == 204
+
+        second_store = body(client.get(f"{url}/reports"))
+        second_report = second_store["report"]
+
+        assert second_store["reportCount"] == 2
+        assert second_store["latestReportId"] == second_report["reportId"]
+        assert second_report["reportId"] != first_report_id
+        assert second_report["disposition"] == "fail"
+        assert second_report["passed"] is False
+        assert second_report["publishable"] is False
+        assert second_report["summary"]["failed"] >= 1
+        assert any(
+            failed_test["tcId"] == changed_tc_id
+            for group in second_report["testGroups"]
+            for failed_test in group["failedTests"]
+        )
+
+        historical = body(
+            client.get(
+                f"{url}/reports",
+                params={"reportId": first_report_id},
+            )
+        )
+        assert historical["reportCount"] == 2
+        assert historical["report"]["reportId"] == first_report_id
+        assert historical["report"]["disposition"] == "passed"

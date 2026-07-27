@@ -45,6 +45,7 @@ from ..storage.store import (
     save_acvp_vector_set,
 )
 from .disposition import build_acvp_vector_set_results
+from .report_artifact import append_report_artifact
 from .errors import acvp_error_response
 from .paging import apply_paging, build_paged_body
 from .state_machine import (
@@ -105,6 +106,7 @@ def version() -> Dict[str, Any]:
             "acvVersion": "1.0",
             "apiVersion": "v1",
             "serverName": "NCCU ACVP Server",
+            "serverVersion": "0.1.0",
             "workflowPolicy": WORKFLOW_POLICY,
             "executionBackend": EXECUTION_BACKEND,
             "nistReferences": NIST_REFERENCES,
@@ -1207,7 +1209,6 @@ def submit_vector_set_results(
         vector_set["validatingAt"] = vector_set["updatedAt"]
         vector_set["response"] = response
         vector_set["validationResult"] = validation_result
-        vector_set["report"] = None
         vector_set["showExpected"] = False
         _transition_vector_if_needed(
             vector_set,
@@ -1236,6 +1237,12 @@ def submit_vector_set_results(
         show_expected=False,
     )
     vector_set["acvpResults"] = acvp_results
+    vector_set["report"] = append_report_artifact(
+        vector_set=vector_set,
+        validation_result=validation_result,
+        acvp_results=acvp_results,
+        response=response,
+    )
     save_acvp_vector_set(vector_set)
 
     from fastapi import Response
@@ -1281,6 +1288,79 @@ def get_vector_set_results(
         expected_results=vector_set.get("expectedResults"),
         show_expected=False,
     )
+
+
+
+def get_vector_set_report(
+    session_id: str,
+    vector_set_id: Any,
+    *,
+    report_id: Optional[str] = None,
+) -> Any:
+    vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
+    if isinstance(vector_set, JSONResponse):
+        return vector_set
+
+    path = (
+        f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}/reports"
+    )
+    report_store = vector_set.get("report")
+
+    if not isinstance(report_store, dict):
+        return acvp_error(
+            409,
+            "REPORT_NOT_AVAILABLE",
+            "No validation report artifact is available for this vector set.",
+            path,
+        )
+
+    artifacts = [
+        item
+        for item in report_store.get("artifacts", [])
+        if isinstance(item, dict)
+    ]
+    if not artifacts:
+        return acvp_error(
+            409,
+            "REPORT_NOT_AVAILABLE",
+            "No validation report artifact is available for this vector set.",
+            path,
+        )
+
+    if report_id is None:
+        latest_report_id = report_store.get("latestReportId")
+        artifact = next(
+            (
+                item
+                for item in artifacts
+                if item.get("reportId") == latest_report_id
+            ),
+            artifacts[-1],
+        )
+    else:
+        artifact = next(
+            (
+                item
+                for item in artifacts
+                if item.get("reportId") == report_id
+            ),
+            None,
+        )
+        if artifact is None:
+            return acvp_error(
+                404,
+                "UNKNOWN_REPORT_ARTIFACT",
+                "Unknown report artifact for this vector set.",
+                f"{path}/{report_id}",
+            )
+
+    return {
+        "testSessionId": session_id,
+        "vsId": int(vector_set["vsId"]),
+        "latestReportId": report_store.get("latestReportId"),
+        "reportCount": len(artifacts),
+        "report": artifact,
+    }
 
 
 def get_test_session_results(session_id: str) -> Any:

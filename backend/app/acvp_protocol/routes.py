@@ -39,6 +39,7 @@ from .service import (
     get_vector_set_expected_results,
     get_vector_set_prompt,
     get_vector_set_results,
+    get_vector_set_report,
     legacy_python_session_response,
     legacy_vector_set_canonical_path,
     list_test_sessions,
@@ -221,6 +222,21 @@ def get_acvp_v1_test_session_vector_set_results(
 ) -> Any:
     return _canonical_response(
         get_vector_set_results(sessionId, vsId, show_expected=showExpected)
+    )
+
+
+@router.get("/testSessions/{sessionId}/vectorSets/{vsId:int}/reports")
+def get_acvp_v1_test_session_vector_set_report(
+    sessionId: str,
+    vsId: int,
+    reportId: Optional[str] = None,
+) -> Any:
+    return _canonical_response(
+        get_vector_set_report(
+            sessionId,
+            vsId,
+            report_id=reportId,
+        )
     )
 
 

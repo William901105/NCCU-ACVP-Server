@@ -4,6 +4,7 @@ import type {
   AcvpRequestResource,
   AcvpSessionDetail,
   AcvpSessionRegistration,
+  AcvpServerVersion,
   AcvpSessionSummary,
   AcvpStrictSessionResultItem,
   AcvpStrictVectorSetResults,
@@ -71,6 +72,10 @@ export async function requestMaybeJson<T>(
     return undefined;
   }
   return (preserveAcvpEnvelope ? payload : unwrapAcvpEnvelope(payload)) as T;
+}
+
+export async function getAcvpServerVersion(): Promise<AcvpServerVersion> {
+  return request<AcvpServerVersion>("/acvp/v1/version");
 }
 
 export async function listAcvpSessions(status?: string): Promise<AcvpSessionSummary[]> {

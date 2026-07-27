@@ -7,6 +7,7 @@ import {
   expectedDeniedView,
   getAcvpExpectedResults,
   getAcvpRequest,
+  getAcvpServerVersion,
   getAcvpSession,
   getAcvpSessionResults,
   getAcvpSessionVectorSets,
@@ -17,11 +18,14 @@ import {
 } from "./api";
 import { downloadJson, isAcvpResourceUrl } from "./acvp";
 import JsonViewer from "./components/JsonViewer";
+import DiagnosticReport from "./components/DiagnosticReport";
+import ValidationReport from "./components/ValidationReport";
 import { buildRegistrationAlgorithms } from "./registration";
 import { FIPS_REGISTRY, getFipsConfig } from "./registry";
 import type {
   AcvpParameterSet,
   AcvpRequestResource,
+  AcvpServerVersion,
   AcvpSessionDetail,
   AcvpSessionRegistration,
   AcvpSessionSummary,
@@ -67,6 +71,7 @@ export default function App() {
   const [expectedView, setExpectedView] = useState<NormalizedExpectedView | null>(null);
   const [uploadedResponse, setUploadedResponse] = useState<JsonValue | null>(null);
   const [uploadedResponseName, setUploadedResponseName] = useState("");
+  const [uploadedResponseSha256, setUploadedResponseSha256] = useState("");
   const [vectorResult, setVectorResult] = useState<NormalizedVectorSetResultView | null>(null);
   const [sessionResults, setSessionResults] = useState<NormalizedSessionResultsView | null>(null);
   const [moduleUrl, setModuleUrl] = useState("");
@@ -74,10 +79,37 @@ export default function App() {
   const [requestResource, setRequestResource] = useState<AcvpRequestResource | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null);
+  const [printReportKind, setPrintReportKind] = useState<"summary" | "diagnostic">("summary");
+  const [serverVersion, setServerVersion] = useState<AcvpServerVersion | null>(null);
 
   const activeVectorSummary =
     vectorSets.find((vector) => vector.vsId === activeVectorSetId) ?? null;
   const activeVectorIsSample = vectorIsSample(activeVectorSet, activeSession);
+  const diagnosticReportAvailable = Boolean(
+    vectorResult &&
+      (
+        vectorResult.tests.some((test) => {
+          const result = test.result?.trim().toLowerCase();
+          return result === "fail" || result === "failed";
+        }) ||
+        ["fail", "failed"].includes(vectorResult.disposition.trim().toLowerCase()) ||
+        activeSession?.passed === false
+      )
+  );
+
+  const validationTotalTests = vectorResult?.tests.length ?? 0;
+  const validationPassedTests =
+    vectorResult?.tests.filter((test) => {
+      const result = test.result?.trim().toLowerCase();
+      return result === "pass" || result === "passed";
+    }).length ?? 0;
+  const validationFailedTests =
+    vectorResult?.tests.filter((test) => {
+      const result = test.result?.trim().toLowerCase();
+      return result === "fail" || result === "failed";
+    }).length ?? 0;
+
   const seedError = validateCampaignSeed(campaignSeed);
   const registrationError = validateRegistration(
     selectedModes,
@@ -96,8 +128,18 @@ export default function App() {
       !isBusy
   );
 
+  function printReport(kind: "summary" | "diagnostic") {
+    setPrintReportKind(kind);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print());
+    });
+  }
   useEffect(() => {
     refreshSessions().catch(showError);
+    getAcvpServerVersion()
+      .then(setServerVersion)
+      .catch(() => setServerVersion(null));
   }, []);
 
   async function refreshSessions() {
@@ -182,6 +224,7 @@ export default function App() {
     setExpectedView(null);
     setUploadedResponse(null);
     setUploadedResponseName("");
+    setUploadedResponseSha256("");
     setVectorResult(null);
     setSessionResults(null);
     if (!vectorIsSample(vector, session)) {
@@ -217,13 +260,25 @@ export default function App() {
     if (!file) {
       return;
     }
+
     setNotice(null);
+
     try {
-      setUploadedResponse(JSON.parse(await file.text()) as JsonValue);
+      const fileBytes = await file.arrayBuffer();
+      const text = new TextDecoder().decode(fileBytes);
+      const parsedResponse = JSON.parse(text) as JsonValue;
+      const digest = await crypto.subtle.digest("SHA-256", fileBytes);
+      const sha256 = Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+
+      setUploadedResponse(parsedResponse);
       setUploadedResponseName(file.name);
+      setUploadedResponseSha256(sha256);
       setVectorResult(null);
       setSessionResults(null);
     } catch {
+      setUploadedResponseSha256("");
       setNotice({ text: "The selected response file is not valid JSON.", tone: "error" });
     }
   }
@@ -265,6 +320,7 @@ export default function App() {
     setSessionResults(results);
     setActiveSession(session);
     setVectorSets(vectors);
+    setReportGeneratedAt(new Date().toISOString());
   }
 
   async function createCertificationRequest() {
@@ -298,6 +354,7 @@ export default function App() {
     setExpectedView(null);
     setUploadedResponse(null);
     setUploadedResponseName("");
+    setUploadedResponseSha256("");
     setVectorResult(null);
     setSessionResults(null);
   }
@@ -454,7 +511,7 @@ export default function App() {
                 <span>{session.label || session.testSessionId}</span>
                 <strong>{session.status}</strong>
                 <small>
-                  {session.algorithm ?? "Unknown algorithm"} · {session.vectorSetCount ?? session.vectorSetIds.length} vector(s) · {session.isSample ? "sample" : "non-sample"}
+                  {session.algorithm ?? "Unknown algorithm"} 蝜?{session.vectorSetCount ?? session.vectorSetIds.length} vector(s) 蝜?{session.isSample ? "sample" : "non-sample"}
                 </small>
               </button>
             ))}
@@ -597,10 +654,89 @@ export default function App() {
             >
               Download session results JSON
             </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => printReport("summary")}
+              disabled={!vectorResult && !sessionResults}
+            >
+              Print Summary Report
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => printReport("diagnostic")}
+              disabled={!diagnosticReportAvailable}
+              title={
+                diagnosticReportAvailable
+                  ? "Print failure diagnostics"
+                  : "Diagnostic Report is available only when validation fails."
+              }
+            >
+              Print Diagnostic Report
+            </button>
           </div>
-          <ResultList result={vectorResult} sessionResults={sessionResults} />
-          <JsonPane title="Vector set results" value={vectorResult?.raw ?? null} />
-          <JsonPane title="Test session results" value={sessionResults?.raw ?? null} />
+          <div className="validation-result-overview">
+            <div className="validation-result-primary">
+              <span>Overall result</span>
+              <strong>
+                {vectorResult?.disposition?.toUpperCase() ?? "UNRECEIVED"}
+              </strong>
+              <small>
+                View the Summary or Diagnostic Report for complete validation details.
+              </small>
+            </div>
+
+            <div className="validation-result-metrics">
+              <div>
+                <span>Total tests</span>
+                <strong>{validationTotalTests}</strong>
+              </div>
+              <div className="passed">
+                <span>Passed</span>
+                <strong>{validationPassedTests}</strong>
+              </div>
+              <div className="failed">
+                <span>Failed</span>
+                <strong>{validationFailedTests}</strong>
+              </div>
+            </div>
+
+            <dl className="validation-result-details">
+              <div>
+                <dt>Algorithm</dt>
+                <dd>
+                  {activeVectorSummary?.algorithm ??
+                    activeSession?.algorithm ??
+                    "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Mode</dt>
+                <dd>
+                  {activeVectorSummary?.mode ??
+                    activeSession?.mode ??
+                    "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Vector set ID</dt>
+                <dd>
+                  {activeVectorSetId === null
+                    ? "—"
+                    : String(activeVectorSetId)}
+                </dd>
+              </div>
+              <div>
+                <dt>Session status</dt>
+                <dd>{activeSession?.status ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>IUT response file</dt>
+                <dd>{uploadedResponseName || "—"}</dd>
+              </div>
+            </dl>
+          </div>
         </section>
 
         <section className="panel stack wide-panel certification-panel">
@@ -657,7 +793,34 @@ export default function App() {
           <JsonPane title="Request resource" value={requestResource?.raw ?? null} />
         </section>
       </section>
-    </main>
+          <div className="print-report-container" aria-hidden="true">
+        {printReportKind === "diagnostic" ? (
+          <DiagnosticReport
+            session={activeSession}
+            vectorSet={activeVectorSummary}
+            vectorSetView={activeVectorSet}
+            responseFileName={uploadedResponseName}
+            responseSha256={uploadedResponseSha256}
+            reportGeneratedAt={reportGeneratedAt}
+            serverVersion={serverVersion}
+            vectorResult={vectorResult}
+            sessionResults={sessionResults}
+          />
+        ) : (
+          <ValidationReport
+            session={activeSession}
+            vectorSet={activeVectorSummary}
+            vectorSetView={activeVectorSet}
+            responseFileName={uploadedResponseName}
+            responseSha256={uploadedResponseSha256}
+            reportGeneratedAt={reportGeneratedAt}
+            serverVersion={serverVersion}
+            vectorResult={vectorResult}
+            sessionResults={sessionResults}
+          />
+        )}
+      </div>
+</main>
   );
 }
 
@@ -850,7 +1013,7 @@ function formatError(error: unknown): string {
   if (error instanceof ApiError) {
     const code = error.code ?? "ACVP_ERROR";
     const path = error.path ? `; path: ${error.path}` : "";
-    return `${code} — ${error.message} (HTTP ${error.status}${path})`;
+    return `${code} ??${error.message} (HTTP ${error.status}${path})`;
   }
   return error instanceof Error ? error.message : "Operation failed.";
 }

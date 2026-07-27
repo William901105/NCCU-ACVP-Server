@@ -79,6 +79,7 @@ def _drop_current_schema(conn: Any) -> None:
     for table in (
         "state_events",
         "acvp_requests",
+        "acvp_reports",
         "acvp_vector_sets",
         "acvp_sessions",
         "demo_sessions",
@@ -400,3 +401,78 @@ def test_legacy_same_vs_id_in_different_sessions_migrates() -> None:
         vector = get_acvp_vector_set_by_vs_id(session_id, 41)
         assert vector is not None
         assert vector["vectorSetId"] == vector_id
+
+def test_legacy_report_json_migrates_to_acvp_reports() -> None:
+    session_id, vector_id = create_legacy_database(
+        prompt={
+            "vsId": 23,
+            "algorithm": "ML-KEM",
+            "mode": "keyGen",
+            "revision": "FIPS203",
+            "testGroups": [],
+        }
+    )
+
+    artifact = {
+        "schemaVersion": "1.0",
+        "artifactType": "nccu-acvp-validation-report",
+        "reportId": "LEGACY-REPORT-001",
+        "generatedAt": "2026-01-01T00:01:00+00:00",
+        "testSessionId": session_id,
+        "vsId": 23,
+        "disposition": "passed",
+        "passed": True,
+        "publishable": True,
+        "responseSha256": "a" * 64,
+        "artifactSha256": "b" * 64,
+    }
+    report_store = {
+        "schemaVersion": "1.0",
+        "artifactType": "nccu-acvp-validation-report",
+        "latestReportId": artifact["reportId"],
+        "artifacts": [artifact],
+    }
+
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE acvp_vector_sets
+            SET report_json = %s
+            WHERE vector_set_id = %s
+            """,
+            (json.dumps(report_store), vector_id),
+        )
+
+    init_db()
+
+    stored = get_acvp_vector_set_by_vs_id(session_id, 23)
+    assert stored is not None
+    assert stored["report"] == report_store
+
+    with _connect() as conn:
+        vector_columns = {
+            row["column_name"]
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'acvp_vector_sets'
+                """
+            ).fetchall()
+        }
+        report_rows = conn.execute(
+            """
+            SELECT report_id, vector_set_id, is_latest, artifact_json
+            FROM acvp_reports
+            WHERE vector_set_id = %s
+            """,
+            (vector_id,),
+        ).fetchall()
+
+    assert "report_json" not in vector_columns
+    assert len(report_rows) == 1
+    assert report_rows[0]["report_id"] == artifact["reportId"]
+    assert report_rows[0]["vector_set_id"] == vector_id
+    assert report_rows[0]["is_latest"] == 1
+    assert json.loads(report_rows[0]["artifact_json"]) == artifact

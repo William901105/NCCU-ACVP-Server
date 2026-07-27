@@ -30,12 +30,17 @@ imports
 demo_sessions
 acvp_sessions
 acvp_vector_sets
+acvp_reports
 acvp_requests
 state_events
 ~~~
 
-Report artifact history is currently stored in
-`acvp_vector_sets.report_json`.
+ACVP validation report artifacts are stored independently in
+`acvp_reports`. Each artifact has its own report identifier, hashes,
+disposition, publication state, and latest-report marker.
+
+Legacy `acvp_vector_sets.report_json` data is migrated automatically into
+`acvp_reports`, after which the old column is removed.
 
 ## Persistent Data
 

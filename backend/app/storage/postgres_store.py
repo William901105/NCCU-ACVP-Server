@@ -79,7 +79,6 @@ CREATE TABLE IF NOT EXISTS acvp_vector_sets (
     expected_results_json TEXT NOT NULL,
     response_json TEXT,
     validation_result_json TEXT,
-    report_json TEXT,
     downloaded_at TEXT,
     submitted_at TEXT,
     validated_at TEXT,
@@ -87,6 +86,29 @@ CREATE TABLE IF NOT EXISTS acvp_vector_sets (
     updated_at TEXT NOT NULL,
     extra_json TEXT,
     FOREIGN KEY(test_session_id) REFERENCES acvp_sessions(test_session_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS acvp_reports (
+    report_sequence BIGSERIAL PRIMARY KEY,
+    report_id TEXT NOT NULL UNIQUE,
+    vector_set_id TEXT NOT NULL,
+    test_session_id TEXT NOT NULL,
+    vs_id INTEGER NOT NULL,
+    schema_version TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    disposition TEXT NOT NULL,
+    passed INTEGER NOT NULL DEFAULT 0,
+    publishable INTEGER NOT NULL DEFAULT 0,
+    is_latest INTEGER NOT NULL DEFAULT 0,
+    response_sha256 TEXT NOT NULL,
+    artifact_sha256 TEXT NOT NULL,
+    artifact_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(vector_set_id)
+        REFERENCES acvp_vector_sets(vector_set_id) ON DELETE CASCADE,
+    FOREIGN KEY(test_session_id)
+        REFERENCES acvp_sessions(test_session_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS acvp_requests (
@@ -116,6 +138,13 @@ CREATE INDEX IF NOT EXISTS idx_imports_mode ON imports(mode);
 CREATE INDEX IF NOT EXISTS idx_demo_sessions_status ON demo_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_acvp_sessions_status ON acvp_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_acvp_vector_sets_session ON acvp_vector_sets(test_session_id);
+CREATE INDEX IF NOT EXISTS idx_acvp_reports_vector_set
+ON acvp_reports(vector_set_id, report_sequence);
+CREATE INDEX IF NOT EXISTS idx_acvp_reports_session_vs
+ON acvp_reports(test_session_id, vs_id, report_sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_acvp_reports_latest
+ON acvp_reports(vector_set_id)
+WHERE is_latest = 1;
 CREATE INDEX IF NOT EXISTS idx_acvp_requests_session ON acvp_requests(test_session_id);
 CREATE INDEX IF NOT EXISTS idx_state_events_entity ON state_events(entity_type, entity_id);
 """
@@ -189,8 +218,56 @@ def init_db() -> None:
             if statement:
                 conn.execute(statement)
         _migrate_public_vs_ids(conn)
+        _migrate_report_artifacts(conn)
     finally:
         conn.close()
+
+
+def _migrate_report_artifacts(conn: _ConnectionAdapter) -> None:
+    columns = {
+        row["column_name"]
+        for row in conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'acvp_vector_sets'
+            """
+        ).fetchall()
+    }
+
+    if "report_json" not in columns:
+        return
+
+    rows = conn.execute(
+        """
+        SELECT vector_set_id, test_session_id, vs_id, report_json
+        FROM acvp_vector_sets
+        WHERE report_json IS NOT NULL
+        """
+    ).fetchall()
+
+    for row in rows:
+        report_store = json_loads(row["report_json"], default=None)
+        if not isinstance(report_store, dict):
+            raise ValueError(
+                "Cannot migrate malformed report_json for vector set "
+                f"{row['vector_set_id']!r}"
+            )
+
+        _save_acvp_report_store(
+            conn,
+            {
+                "vectorSetId": row["vector_set_id"],
+                "testSessionId": row["test_session_id"],
+                "vsId": row["vs_id"],
+                "report": report_store,
+            },
+        )
+
+    conn.execute(
+        "ALTER TABLE acvp_vector_sets DROP COLUMN report_json"
+    )
 
 
 def reset_db_for_tests() -> None:
@@ -199,6 +276,7 @@ def reset_db_for_tests() -> None:
     try:
         conn.execute("DROP TABLE IF EXISTS state_events CASCADE")
         conn.execute("DROP TABLE IF EXISTS acvp_requests CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_reports CASCADE")
         conn.execute("DROP TABLE IF EXISTS acvp_vector_sets CASCADE")
         conn.execute("DROP TABLE IF EXISTS acvp_sessions CASCADE")
         conn.execute("DROP TABLE IF EXISTS demo_sessions CASCADE")
@@ -324,6 +402,145 @@ def clear_acvp_sessions() -> None:
         conn.execute("DELETE FROM state_events WHERE entity_type = 'acvp_session'")
 
 
+def _report_artifacts_from_store(report_store: Any) -> List[Dict[str, Any]]:
+    if not isinstance(report_store, dict):
+        return []
+
+    stored = report_store.get("artifacts")
+    if isinstance(stored, list):
+        return [
+            dict(item)
+            for item in stored
+            if isinstance(item, dict) and item.get("reportId")
+        ]
+
+    if report_store.get("reportId"):
+        return [dict(report_store)]
+
+    return []
+
+
+def _save_acvp_report_store(
+    conn: _ConnectionAdapter,
+    vector_set: Dict[str, Any],
+) -> None:
+    vector_set_id = str(vector_set["vectorSetId"])
+    report_store = vector_set.get("report")
+    artifacts = _report_artifacts_from_store(report_store)
+
+    conn.execute(
+        "DELETE FROM acvp_reports WHERE vector_set_id = ?",
+        (vector_set_id,),
+    )
+
+    if not artifacts:
+        return
+
+    latest_report_id = (
+        report_store.get("latestReportId")
+        if isinstance(report_store, dict)
+        else None
+    )
+    available_ids = {
+        str(artifact["reportId"])
+        for artifact in artifacts
+    }
+    if latest_report_id not in available_ids:
+        latest_report_id = str(artifacts[-1]["reportId"])
+
+    now = utc_now_iso()
+
+    for artifact in artifacts:
+        report_id = str(artifact["reportId"])
+        test_session_id = str(
+            artifact.get("testSessionId")
+            or vector_set["testSessionId"]
+        )
+        vs_id = artifact.get("vsId", vector_set.get("vsId"))
+
+        if isinstance(vs_id, bool) or not isinstance(vs_id, int) or vs_id < 0:
+            raise ValueError(
+                f"Report {report_id!r} requires a non-negative numeric vsId"
+            )
+
+        conn.execute(
+            """
+            INSERT INTO acvp_reports (
+                report_id, vector_set_id, test_session_id, vs_id,
+                schema_version, artifact_type, generated_at,
+                disposition, passed, publishable, is_latest,
+                response_sha256, artifact_sha256, artifact_json,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report_id,
+                vector_set_id,
+                test_session_id,
+                vs_id,
+                str(artifact.get("schemaVersion", "")),
+                str(artifact.get("artifactType", "")),
+                str(artifact.get("generatedAt") or now),
+                str(artifact.get("disposition", "error")),
+                1 if artifact.get("passed", False) else 0,
+                1 if artifact.get("publishable", False) else 0,
+                1 if report_id == latest_report_id else 0,
+                str(artifact.get("responseSha256", "")),
+                str(artifact.get("artifactSha256", "")),
+                json_dumps(artifact),
+                now,
+            ),
+        )
+
+
+def _load_acvp_report_store(
+    conn: _ConnectionAdapter,
+    vector_set_id: str,
+) -> Optional[Dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT report_id, schema_version, artifact_type,
+               artifact_json, is_latest
+        FROM acvp_reports
+        WHERE vector_set_id = ?
+        ORDER BY report_sequence
+        """,
+        (vector_set_id,),
+    ).fetchall()
+
+    artifacts: List[Dict[str, Any]] = []
+    latest_report_id: Optional[str] = None
+    latest_schema_version = ""
+    latest_artifact_type = ""
+
+    for row in rows:
+        artifact = json_loads(row["artifact_json"], default=None)
+        if not isinstance(artifact, dict):
+            continue
+
+        artifacts.append(artifact)
+        if row["is_latest"]:
+            latest_report_id = row["report_id"]
+            latest_schema_version = row["schema_version"]
+            latest_artifact_type = row["artifact_type"]
+
+    if not artifacts:
+        return None
+
+    if latest_report_id is None:
+        latest = rows[-1]
+        latest_report_id = latest["report_id"]
+        latest_schema_version = latest["schema_version"]
+        latest_artifact_type = latest["artifact_type"]
+
+    return {
+        "schemaVersion": latest_schema_version,
+        "artifactType": latest_artifact_type,
+        "latestReportId": latest_report_id,
+        "artifacts": artifacts,
+    }
+
+
 def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
     now = utc_now_iso()
     prompt = vector_set["prompt"]
@@ -344,7 +561,6 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
         json_dumps(expected_results),
         _json_or_none(vector_set.get("response")),
         _json_or_none(vector_set.get("validationResult")),
-        _json_or_none(vector_set.get("report")),
         vector_set.get("downloadedAt"),
         vector_set.get("submittedAt"),
         vector_set.get("validatedAt"),
@@ -358,7 +574,7 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
             UPDATE acvp_vector_sets
             SET test_session_id = ?, vs_id = ?, status = ?, algorithm = ?, mode = ?,
                 revision = ?, prompt_json = ?, expected_results_json = ?,
-                response_json = ?, validation_result_json = ?, report_json = ?,
+                response_json = ?, validation_result_json = ?,
                 downloaded_at = ?, submitted_at = ?, validated_at = ?,
                 created_at = ?, updated_at = ?, extra_json = ?
             WHERE vector_set_id = ?
@@ -371,12 +587,14 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
                 INSERT INTO acvp_vector_sets (
                     vector_set_id, test_session_id, vs_id, status, algorithm, mode, revision,
                     prompt_json, expected_results_json, response_json,
-                    validation_result_json, report_json, downloaded_at, submitted_at,
+                    validation_result_json, downloaded_at, submitted_at,
                     validated_at, created_at, updated_at, extra_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (vector_set["vectorSetId"], *values),
             )
+
+        _save_acvp_report_store(conn, vector_set)
 
 
 def get_acvp_vector_set(vector_set_id: str) -> Optional[Dict[str, Any]]:
@@ -385,7 +603,16 @@ def get_acvp_vector_set(vector_set_id: str) -> Optional[Dict[str, Any]]:
             "SELECT * FROM acvp_vector_sets WHERE vector_set_id = ?",
             (vector_set_id,),
         ).fetchone()
-    return _row_to_acvp_vector_set(row) if row is not None else None
+        report_store = (
+            _load_acvp_report_store(conn, vector_set_id)
+            if row is not None
+            else None
+        )
+    return (
+        _row_to_acvp_vector_set(row, report_store=report_store)
+        if row is not None
+        else None
+    )
 
 
 def get_acvp_vector_set_by_vs_id(
@@ -400,7 +627,16 @@ def get_acvp_vector_set_by_vs_id(
             """,
             (test_session_id, vs_id),
         ).fetchone()
-    return _row_to_acvp_vector_set(row) if row is not None else None
+        report_store = (
+            _load_acvp_report_store(conn, row["vector_set_id"])
+            if row is not None
+            else None
+        )
+    return (
+        _row_to_acvp_vector_set(row, report_store=report_store)
+        if row is not None
+        else None
+    )
 
 
 def list_acvp_vector_sets_for_session(test_session_id: str) -> List[Dict[str, Any]]:
@@ -413,7 +649,20 @@ def list_acvp_vector_sets_for_session(test_session_id: str) -> List[Dict[str, An
             """,
             (test_session_id,),
         ).fetchall()
-    return [_row_to_acvp_vector_set(row) for row in rows]
+        report_stores = {
+            row["vector_set_id"]: _load_acvp_report_store(
+                conn,
+                row["vector_set_id"],
+            )
+            for row in rows
+        }
+    return [
+        _row_to_acvp_vector_set(
+            row,
+            report_store=report_stores[row["vector_set_id"]],
+        )
+        for row in rows
+    ]
 
 
 def update_acvp_vector_set(vector_set_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -699,7 +948,20 @@ def _list_all_acvp_vector_sets() -> List[Dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM acvp_vector_sets ORDER BY created_at, vector_set_id"
         ).fetchall()
-    return [_row_to_acvp_vector_set(row) for row in rows]
+        report_stores = {
+            row["vector_set_id"]: _load_acvp_report_store(
+                conn,
+                row["vector_set_id"],
+            )
+            for row in rows
+        }
+    return [
+        _row_to_acvp_vector_set(
+            row,
+            report_store=report_stores[row["vector_set_id"]],
+        )
+        for row in rows
+    ]
 
 
 def _row_to_acvp_session(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -735,7 +997,11 @@ def _row_to_acvp_session(row: Dict[str, Any]) -> Dict[str, Any]:
     return session
 
 
-def _row_to_acvp_vector_set(row: Dict[str, Any]) -> Dict[str, Any]:
+def _row_to_acvp_vector_set(
+    row: Dict[str, Any],
+    *,
+    report_store: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     extra = json_loads(row["extra_json"], default={}) or {}
     vector_set = dict(extra)
     vector_set.update(
@@ -750,7 +1016,7 @@ def _row_to_acvp_vector_set(row: Dict[str, Any]) -> Dict[str, Any]:
             "expectedResults": json_loads(row["expected_results_json"], default=None),
             "response": json_loads(row["response_json"], default=None),
             "validationResult": json_loads(row["validation_result_json"], default=None),
-            "report": json_loads(row["report_json"], default=None),
+            "report": report_store,
             "mode": row["mode"],
             "downloadedAt": row["downloaded_at"],
             "submittedAt": row["submitted_at"],

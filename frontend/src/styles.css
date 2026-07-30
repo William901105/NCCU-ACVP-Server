@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #17212b;
@@ -1479,7 +1479,24 @@ select {
 }
 
 @media print {
-  .diagnostic-group,
+  .diagnostic-group {
+    overflow: visible;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .diagnostic-group + .diagnostic-group {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .diagnostic-group-header,
+  .diagnostic-group-context,
+  .diagnostic-case-table-header {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
   .diagnostic-case-row {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -1655,11 +1672,21 @@ select {
   border-top-color: #b3261e;
 }
 
-.diagnostic-report-header.passed .report-overall strong {
+.report-overall.passed {
+  border-color: #b9dfca;
+  background: #effaf4;
+}
+
+.report-overall.passed strong {
   color: #147448;
 }
 
-.diagnostic-report-header.failed .report-overall strong {
+.report-overall.failed {
+  border-color: #efc1bd;
+  background: #fff3f1;
+}
+
+.report-overall.failed strong {
   color: #a3332d;
 }
 

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AcvpServerVersion,
   AcvpSessionDetail,
   AcvpVectorSetSummary,
@@ -48,11 +48,7 @@ export default function ValidationReport({
   ).length;
 
   const dispositionOutcome = classifyOutcome(vectorResult?.disposition);
-  const overallPassed =
-    sessionResults?.passed ??
-    (dispositionOutcome === "other"
-      ? session.passed ?? false
-      : dispositionOutcome === "passed");
+  const overallPassed = failedCount === 0 && dispositionOutcome === "passed";
 
   const overallLabel = overallPassed ? "PASSED" : "FAILED";
   const disposition = vectorResult?.disposition ?? "unreceived";

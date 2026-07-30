@@ -85,8 +85,7 @@ export default function DiagnosticReport({
   const vectorSetId = vectorSet?.vsId ?? vectorSet?.vectorSetId ?? "unknown";
   const reportId = `NCCU-ACVP-DIAG-${session.testSessionId}-VS${String(vectorSetId)}`;
   const disposition = vectorResult?.disposition ?? "unreceived";
-  const overallFailed =
-    failedTests.length > 0 || isFailure(disposition) || session.passed === false;
+  const overallFailed = failedTests.length > 0 || isFailure(disposition);
 
   const nistSourceCommit =
     typeof vectorSet?.nistSourceCommit === "string" &&
@@ -96,7 +95,7 @@ export default function DiagnosticReport({
 
   return (
     <article className={`diagnostic-report ${overallFailed ? "failed" : "passed"}`}>
-      <header className="diagnostic-report-header">
+      <header className={`diagnostic-report-header ${overallFailed ? "failed" : "passed"}`}>
         <div>
           <p className="report-section-kicker">NCCU ACVP Server</p>
           <h2>Cryptographic Diagnostic Report</h2>
@@ -193,7 +192,7 @@ export default function DiagnosticReport({
         </dl>
       </section>
 
-      <section className="diagnostic-failures">
+      <section className="diagnostic-failures" style={{ display: failedTests.length === 0 ? "none" : undefined }}>
         <div className="report-section-heading">
           <div>
             <p className="report-section-kicker">Failure diagnostics</p>
@@ -209,7 +208,7 @@ export default function DiagnosticReport({
             No failed test cases were returned for this vector set.
           </p>
         ) : (
-          Array.from(failedTestGroups.values()).map((group) => (
+          Array.from(failedTestGroups.values()).sort((a, b) => Number(a.tgId ?? Number.MAX_SAFE_INTEGER) - Number(b.tgId ?? Number.MAX_SAFE_INTEGER)).map((group) => (
             <section
               className="diagnostic-group"
               key={`tg-${String(group.tgId ?? "unknown")}`}

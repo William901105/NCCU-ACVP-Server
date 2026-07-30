@@ -44,14 +44,21 @@ _ENCAP_DECAP_SHAPES = {
 }
 
 
-def validate_response(payload: Any, expected_mode: Optional[str] = None) -> Dict[str, Any]:
+def validate_response(
+    payload: Any,
+    expected_mode: Optional[str] = None,
+    *,
+    revision: str = REVISION,
+) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
-    mode = _validate_top_level(obj, expected_mode)
+    mode = _validate_top_level(obj, expected_mode, revision)
     _validate_groups(require_field(obj, "testGroups", "$"), mode)
     return obj
 
 
-def _validate_top_level(obj: Dict[str, Any], expected_mode: Optional[str]) -> str:
+def _validate_top_level(
+    obj: Dict[str, Any], expected_mode: Optional[str], revision: str
+) -> str:
     require_allowed_fields(obj, _TOP_LEVEL_FIELDS, "$")
     require_int(require_field(obj, "vsId", "$"), "$.vsId")
     if obj.get("acvVersion") is not None:
@@ -70,11 +77,11 @@ def _validate_top_level(obj: Dict[str, Any], expected_mode: Optional[str]) -> st
                 "$.algorithm",
             )
     if "revision" in obj:
-        revision = require_string(obj["revision"], "$.revision")
-        if revision != REVISION:
+        response_revision = require_string(obj["revision"], "$.revision")
+        if response_revision != revision:
             raise AcvpSchemaError(
                 "unsupported_revision",
-                f"Unsupported revision: {revision}",
+                f"Unsupported revision: {response_revision}",
                 "$.revision",
             )
 

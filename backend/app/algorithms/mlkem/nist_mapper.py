@@ -13,18 +13,21 @@ def map_mlkem_registration_to_nist(
     *,
     vs_id: int,
     is_sample: bool = True,
+    revision: str = REVISION,
 ) -> Dict[str, Any]:
-    normalized = validate_mlkem_registration(registration)
+    normalized = validate_mlkem_registration(registration, revision=revision)
     mapped: Dict[str, Any] = {
         "vsId": require_int(vs_id, "$.vsId"),
         "algorithm": ALGORITHM,
         "mode": normalized["mode"],
-        "revision": REVISION,
+        "revision": normalized["revision"],
         "isSample": require_bool(is_sample, "$.isSample"),
         "parameterSets": list(normalized["parameterSets"]),
     }
     if normalized["mode"] == "encapDecap":
         mapped["functions"] = list(normalized["functions"])
+        if "keyFormats" in normalized:
+            mapped["keyFormats"] = list(normalized["keyFormats"])
     if "prereqVals" in normalized:
         mapped["prereqVals"] = deepcopy(normalized["prereqVals"])
     return mapped

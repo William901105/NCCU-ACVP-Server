@@ -3,6 +3,21 @@ from __future__ import annotations
 
 ALGORITHM = "ML-KEM"
 REVISION = "FIPS203"
+# FIPS203-tr1 is an ACVP *test* revision (test revision 1) against the same
+# FIPS 203 standard. It adds the keyFormats capability (seed / expanded private
+# key formats) to encapDecap. See docs/mlkem-fips203-tr1-spec.md.
+REVISION_TR1 = "FIPS203-tr1"
+REVISIONS = {REVISION, REVISION_TR1}
+
+# Registrable private-key formats, applicable only to
+# ML-KEM / encapDecap / FIPS203-tr1 (the formats an IUT may advertise).
+KEY_FORMATS = {"expanded", "seed"}
+# Per-testGroup keyFormat as emitted by NIST GenVal. Functions that do not use a
+# decapsulation key (encapsulation, encapsulationKeyCheck, decapsulationKeyCheck)
+# carry keyFormat "none"; decapsulation carries "seed" or "expanded".
+GROUP_KEY_FORMATS = {"none", "seed", "expanded"}
+# The seed key format carries the decapsulation key as separate d(32) and z(32)
+# fields (not a single concatenated seed); the IUT expands them to the dk.
 
 MODES = {"keyGen", "encapDecap"}
 PARAMETER_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}

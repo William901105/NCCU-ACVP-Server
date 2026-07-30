@@ -78,7 +78,7 @@ def test_production_registry_contains_mldsa_and_mlkem_descriptors() -> None:
     descriptors = registry.list_descriptors()
     descriptor = descriptors[0]
 
-    assert len(registry) == 2
+    assert len(registry) == 3
     assert descriptor["providerId"] == "nist-ml-dsa-fips204"
     assert descriptor["algorithm"] == "ML-DSA"
     assert descriptor["revision"] == "FIPS204"

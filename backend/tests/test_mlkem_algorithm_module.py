@@ -61,13 +61,14 @@ def test_production_registry_contains_two_providers_and_five_identities() -> Non
     registry = build_algorithm_registry()
     descriptors = registry.list_descriptors()
 
-    assert len(registry) == 2
+    assert len(registry) == 3
     assert [item["providerId"] for item in descriptors] == [
         "nist-ml-dsa-fips204",
         "nist-ml-kem-fips203",
+        "nist-ml-kem-fips203-tr1",
     ]
-    assert len(registry.identities()) == 5
-    assert len({item["providerId"] for item in descriptors}) == 2
+    assert len(registry.identities()) == 6
+    assert len({item["providerId"] for item in descriptors}) == 3
     mldsa = descriptors[0]
     assert mldsa["modes"] == ["keyGen", "sigGen", "sigVer"]
     assert mldsa["parameterSets"] == ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]

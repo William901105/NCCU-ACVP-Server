@@ -191,6 +191,9 @@ def get_database_url() -> str:
         )
     return configured
 
+def get_schema_database_url() -> str:
+    return os.environ.get("ACVP_SCHEMA_DATABASE_URL") or get_database_url()
+
 
 
 def _assert_test_database() -> None:
@@ -231,9 +234,13 @@ class _ConnectionAdapter:
         self._connection.close()
 
 
-def _open_connection(*, autocommit: bool = False) -> _ConnectionAdapter:
+def _open_connection(
+    *,
+    autocommit: bool = False,
+    database_url: str | None = None,
+) -> _ConnectionAdapter:
     connection = psycopg.connect(
-        get_database_url(),
+        database_url or get_database_url(),
         autocommit=autocommit,
         row_factory=dict_row,
     )
@@ -241,7 +248,10 @@ def _open_connection(*, autocommit: bool = False) -> _ConnectionAdapter:
 
 
 def init_db() -> None:
-    conn = _open_connection(autocommit=True)
+    conn = _open_connection(
+        autocommit=True,
+        database_url=get_schema_database_url(),
+    )
     try:
         for statement in SCHEMA_SQL.split(";"):
             statement = statement.strip()

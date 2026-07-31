@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.storage import postgres_store
 from app.storage.postgres_store import (
     connect,
     get_acvp_vector_set,
@@ -150,3 +151,42 @@ def test_acvp_reports_are_stored_in_independent_table() -> None:
     assert stored is not None
     assert stored["report"]["latestReportId"] == "REPORT-002"
     assert stored["report"]["artifacts"] == artifacts
+
+
+def test_init_db_uses_schema_database_url(monkeypatch) -> None:
+    schema_url = "postgresql://owner@example.test/neondb"
+    observed = {}
+
+    class FakeConnection:
+        def close(self) -> None:
+            observed["closed"] = True
+
+    def fake_open_connection(*, autocommit=False, database_url=None):
+        observed["autocommit"] = autocommit
+        observed["database_url"] = database_url
+        return FakeConnection()
+
+    with monkeypatch.context() as patch:
+        patch.setenv("ACVP_SCHEMA_DATABASE_URL", schema_url)
+        patch.setattr(postgres_store, "SCHEMA_SQL", "")
+        patch.setattr(
+            postgres_store,
+            "_open_connection",
+            fake_open_connection,
+        )
+        patch.setattr(
+            postgres_store,
+            "_migrate_public_vs_ids",
+            lambda conn: None,
+        )
+        patch.setattr(
+            postgres_store,
+            "_migrate_report_artifacts",
+            lambda conn: None,
+        )
+
+        postgres_store.init_db()
+
+    assert observed["autocommit"] is True
+    assert observed["database_url"] == schema_url
+    assert observed["closed"] is True

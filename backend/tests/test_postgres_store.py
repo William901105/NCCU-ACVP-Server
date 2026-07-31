@@ -33,6 +33,7 @@ def test_postgres_db_init_creates_required_tables() -> None:
         "acvp_sessions",
         "acvp_vector_sets",
         "acvp_reports",
+        "test_vectors",
         "acvp_requests",
         "state_events",
     }.issubset(table_names)

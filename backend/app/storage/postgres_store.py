@@ -111,6 +111,34 @@ CREATE TABLE IF NOT EXISTS acvp_reports (
         REFERENCES acvp_sessions(test_session_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS test_vectors (
+    test_vector_id BIGSERIAL PRIMARY KEY,
+    algorithm TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    parameter_set TEXT NOT NULL,
+    tg_id INTEGER,
+    tc_id INTEGER NOT NULL CHECK (tc_id > 0),
+    vector_data JSONB NOT NULL
+        CHECK (jsonb_typeof(vector_data) = 'object'),
+    source TEXT NOT NULL DEFAULT 'NIST',
+    source_version TEXT NOT NULL DEFAULT 'unknown',
+    sha256 TEXT NOT NULL UNIQUE,
+    enabled INTEGER NOT NULL DEFAULT 1
+        CHECK (enabled IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_algorithm
+ON test_vectors(algorithm, revision, mode, parameter_set);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_tc
+ON test_vectors(tg_id, tc_id);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_enabled
+ON test_vectors(enabled);
+
 CREATE TABLE IF NOT EXISTS acvp_requests (
     request_id BIGSERIAL PRIMARY KEY,
     test_session_id TEXT NOT NULL UNIQUE,

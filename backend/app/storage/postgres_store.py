@@ -317,7 +317,6 @@ def reset_db_for_tests() -> None:
 
 
 def connect() -> _ConnectionAdapter:
-    init_db()
     return _open_connection()
 
 def save_acvp_session(session: Dict[str, Any]) -> None:

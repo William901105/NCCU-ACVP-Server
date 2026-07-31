@@ -93,6 +93,7 @@ try {
         $env:ACVP_GENVAL_ARTIFACT_ROOT = $ArtifactRoot
 
         $BackendCommand = @"
+`$Host.UI.RawUI.WindowTitle = 'NCCU ACVP Backend'
 Set-Location '$RepoRoot'
 python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 "@
@@ -116,12 +117,14 @@ finally {
 
 if (-not (Test-LocalPort -Port 11111)) {
     $OrleansCommand = @"
+`$Host.UI.RawUI.WindowTitle = 'NCCU ACVP Orleans'
 Set-Location '$RepoRoot'
 dotnet '$OrleansDll' --console
 "@
 
     Start-Process powershell `
-        -ArgumentList "-NoExit", "-Command", $OrleansCommand
+        -ArgumentList "-NoExit", "-Command", $OrleansCommand `
+        -WindowStyle Minimized
 }
 else {
     Write-Host "Orleans 已在執行。"
@@ -129,7 +132,7 @@ else {
 
 if (-not (Test-LocalPort -Port 5173)) {
     Start-Process cmd.exe `
-        -ArgumentList "/k", "cd /d `"$FrontendRoot`" && npm.cmd run dev"
+        -ArgumentList "/k", "title NCCU ACVP Frontend && cd /d `"$FrontendRoot`" && npm.cmd run dev"
 }
 else {
     Write-Host "前端 5173 已在執行。"

@@ -113,6 +113,25 @@
   待 NIST 修正（讓 keyCheck group 帶 seed/expanded 並在 prompt 附金鑰）後，harness 再
   比照 decapsulation 的 seed/expanded 分支補上即可，無需改動底層庫。
 
+- ✅ **活體確認（2026-08-03，實跑 GenVal v1.1.0.43）——缺陷其實是「雙層」的**：
+  在本機 build 起 v1.1.0.43（runner + Orleans silo），用本專案 mapper 產生的 tr1 註冊
+  實跑 `-g` 生成、harness 作答、再 `-n -b` 交回 NIST 驗證，證實：
+  1. **產生層**：GenVal 現生成的 `decapsulationKeyCheck` group 仍是 keyFormat `none`、
+     prompt 無金鑰（與上述原始碼分析一致）。
+  2. **驗證層（新發現）**：NIST 自己的 `TestCaseValidatorKeyCheck.ValidateAsync`
+     （tr1，line 20–28）在 `_expectedResult.TestPassed != suppliedResult.TestPassed`
+     成立時，直接對 `suppliedResult.TestPassed.Value` 取值而**未做 `.HasValue` 檢查**。
+     由於 IUT（正確地）未回 `testPassed`，該 nullable 為 null → 拋
+     `System.InvalidOperationException: Nullable object must have a value` →
+     `TaskCanceledException` → **整份提交中止、連 `validation.json` 都產不出來**。
+     也就是說：這個功能不只 IUT 答不出來，**NIST 自己也驗不下去**。
+  3. **其餘 3 個 function 完整迴圈通過**：註冊排除 `decapsulationKeyCheck`（其餘
+     `encapsulation` / `decapsulation`(expanded+seed) / `encapsulationKeyCheck`）時，
+     生成 → harness → NIST 驗證全綠：`disposition: passed`、**55/55 passed**；
+     harness 的 fail 變體則正確得到 `disposition: failed`（1 failed / 54 passed）。
+  ⇒ **實務建議**：在 NIST 修正前，tr1 註冊**不要勾 `decapsulationKeyCheck`**，其餘功能
+  端到端完全可用。這也已由本專案 `test_mlkem_tr1.py` 的往返測試在應用層固定下來。
+
 ---
 
 ## 4. 後端變更（`backend/app/algorithms/mlkem/`）

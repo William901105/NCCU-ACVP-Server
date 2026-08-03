@@ -29,3 +29,9 @@ frontend/.env.local.save
 
 # Native build artifacts
 backend/native/mldsa_oracle/bin/
+
+# Local NIST ACVP-Server source used only to build GenVal (not vendored; ~1.1GB).
+# See docs/tr1-status-report.md for how to build GenVal v1.1.0.43 from it.
+ACVP-Server-1.1.0.43/
+ACVP-Server/
+acvp-v11043.tar.gz

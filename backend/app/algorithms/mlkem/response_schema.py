@@ -23,6 +23,7 @@ from .constants import (
     K_BYTES,
     MODES,
     REVISION,
+    REVISION_TR1,
 )
 from .normalize import normalize_acvp_container
 
@@ -42,6 +43,13 @@ _ENCAP_DECAP_SHAPES = {
     frozenset({"k"}),
     frozenset({"testPassed"}),
 }
+# Under FIPS203-tr1, NIST GenVal emits decapsulationKeyCheck groups with
+# keyFormat "none" and no key in the prompt (a NIST-side defect, see
+# docs/mlkem-fips203-tr1-spec.md 3.3), so a conformant IUT can only answer with
+# {tcId} -- an empty response shape. The response payload does not carry the
+# group's function, so this empty shape is admitted for tr1 encapDecap only;
+# base FIPS203 keeps rejecting it.
+_EMPTY_SHAPE = frozenset()
 
 
 def validate_response(
@@ -52,7 +60,7 @@ def validate_response(
 ) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
     mode = _validate_top_level(obj, expected_mode, revision)
-    _validate_groups(require_field(obj, "testGroups", "$"), mode)
+    _validate_groups(require_field(obj, "testGroups", "$"), mode, revision)
     return obj
 
 
@@ -110,7 +118,7 @@ def _validate_top_level(
     return supplied_mode or _infer_mode(obj)
 
 
-def _validate_groups(value: Any, mode: str) -> None:
+def _validate_groups(value: Any, mode: str, revision: str = REVISION) -> None:
     if not isinstance(value, list):
         raise AcvpSchemaError("invalid_type", "Expected array", "$.testGroups")
     if not value:
@@ -145,7 +153,7 @@ def _validate_groups(value: Any, mode: str) -> None:
                     "All tests in a response group must use the same response shape",
                     test_path,
                 )
-            _validate_test(test, test_path, mode, shape)
+            _validate_test(test, test_path, mode, shape, revision)
         all_tests.extend(tests)
     validate_unique_int_ids(all_tests, "tcId", "$.testGroups[*].tests")
 
@@ -155,6 +163,7 @@ def _validate_test(
     path: str,
     mode: str,
     shape: frozenset[str],
+    revision: str = REVISION,
 ) -> None:
     require_int(require_field(test, "tcId", path), child_path(path, "tcId"))
     if mode == "keyGen":
@@ -196,7 +205,11 @@ def _validate_test(
         test["ek"], test["dk"] = ek, dk
         return
 
-    if shape not in _ENCAP_DECAP_SHAPES:
+    allowed_shapes = _ENCAP_DECAP_SHAPES
+    if revision == REVISION_TR1:
+        # tr1 decapsulationKeyCheck (keyFormat "none"): {tcId} only. See above.
+        allowed_shapes = _ENCAP_DECAP_SHAPES | {_EMPTY_SHAPE}
+    if shape not in allowed_shapes:
         require_allowed_fields(test, {"tcId", "c", "k", "testPassed"}, path)
         raise AcvpSchemaError(
             "invalid_response_shape",
@@ -204,6 +217,10 @@ def _validate_test(
             path,
         )
     require_allowed_fields(test, {"tcId", *shape}, path)
+    if shape == _EMPTY_SHAPE:
+        # No key material was supplied in the prompt (tr1 decapsulationKeyCheck),
+        # so the IUT correctly returns only tcId; nothing further to validate.
+        return
     if shape == frozenset({"c", "k"}):
         ciphertext = require_hex_string(
             require_field(test, "c", path),

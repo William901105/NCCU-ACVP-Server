@@ -36,10 +36,13 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
         obj.pop("acvVersion", None)
     supports_key_formats = revision == REVISION_TR1
     allowed = set(_COMMON_FIELDS)
+    # keyFormats is contextual: admit it through the unknown-field gate so the
+    # conditional checks below can reject it with a precise
+    # invalid_conditional_field error (mode is keyGen / revision is FIPS203)
+    # rather than a generic unknown_field.
+    allowed.add("keyFormats")
     if obj.get("mode") == "encapDecap":
         allowed.add("functions")
-        if supports_key_formats:
-            allowed.add("keyFormats")
     require_allowed_fields(obj, allowed, "$")
 
     algorithm = require_string(require_field(obj, "algorithm", "$"), "$.algorithm")
@@ -86,13 +89,24 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
             "$.functions",
             code="invalid_function",
         )
-        if supports_key_formats:
+        if not supports_key_formats:
+            require_absent(obj, "keyFormats", "$", "revision is FIPS203")
+        elif "decapsulation" in obj["functions"]:
+            # NIST ParameterValidator requires (and validates) keyFormats only
+            # when the Decapsulation function is registered.
             obj["keyFormats"] = require_enum_array(
                 require_field(obj, "keyFormats", "$"),
                 KEY_FORMATS,
                 "$.keyFormats",
                 code="invalid_key_format",
             )
-        else:
-            require_absent(obj, "keyFormats", "$", "revision is FIPS203")
+        elif "keyFormats" in obj:
+            # keyFormats is optional without decapsulation; still validate the
+            # values if the client chose to send them.
+            obj["keyFormats"] = require_enum_array(
+                obj["keyFormats"],
+                KEY_FORMATS,
+                "$.keyFormats",
+                code="invalid_key_format",
+            )
     return obj

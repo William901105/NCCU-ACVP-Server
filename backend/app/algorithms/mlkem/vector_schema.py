@@ -207,17 +207,30 @@ def _validate_encap_decap_test(
     function: str,
     key_format: str = "expanded",
 ) -> None:
-    # Under FIPS203-tr1 with keyFormat "seed", the decapsulation key is carried
-    # as separate d(32) and z(32) fields (not a concatenated seed); the IUT
-    # expands them to the dk. decapsulationKeyCheck prompts carry no key
-    # material (NIST GenVal supplies it server-side), so dk is optional there.
-    decap_seed = function == "decapsulation" and key_format == "seed"
-    fields = {
-        "encapsulation": {"tcId", "ek", "m"},
-        "decapsulation": {"tcId", "d", "z", "c"} if decap_seed else {"tcId", "dk", "c"},
-        "encapsulationKeyCheck": {"tcId", "ek"},
-        "decapsulationKeyCheck": {"tcId", "dk"},
-    }[function]
+    # Under FIPS203-tr1, keyFormat controls how the decapsulation key is carried:
+    #   "seed"     -> separate d(32) and z(32) fields (the IUT expands them to dk)
+    #   "expanded" -> the full dk
+    #   "none"     -> no key at all (decapsulationKeyCheck only; NIST GenVal
+    #                 v1.1.0.43 emits this and supplies no key in the prompt, see
+    #                 docs/mlkem-fips203-tr1-spec.md 3.3)
+    # decapsulation and decapsulationKeyCheck share the same seed/expanded/none
+    # key shapes. A key *check* (decapsulationKeyCheck) may present an
+    # intentionally malformed key, so its key material is length-agnostic;
+    # a real decapsulation enforces exact lengths.
+    seed_key = key_format == "seed"
+    none_key = key_format == "none"
+
+    if function == "encapsulation":
+        fields = {"tcId", "ek", "m"}
+    elif function == "encapsulationKeyCheck":
+        fields = {"tcId", "ek"}
+    elif function == "decapsulation":
+        fields = {"tcId", "c"} | ({"d", "z"} if seed_key else {"dk"})
+    else:  # decapsulationKeyCheck
+        if none_key:
+            fields = {"tcId"}
+        else:
+            fields = {"tcId"} | ({"d", "z"} if seed_key else {"dk"})
     require_allowed_fields(test, fields, path)
     require_int(require_field(test, "tcId", path), child_path(path, "tcId"))
 
@@ -234,8 +247,15 @@ def _validate_encap_decap_test(
             allow_empty=False,
             exact_bytes=M_BYTES,
         )
+    elif function == "encapsulationKeyCheck":
+        # key-validity check: ek may be intentionally malformed -> no exact length.
+        test["ek"] = require_hex_string(
+            require_field(test, "ek", path),
+            child_path(path, "ek"),
+            allow_empty=False,
+        )
     elif function == "decapsulation":
-        if decap_seed:
+        if seed_key:
             test["d"] = require_hex_string(
                 require_field(test, "d", path),
                 child_path(path, "d"),
@@ -261,21 +281,23 @@ def _validate_encap_decap_test(
             allow_empty=False,
             exact_bytes=CIPHERTEXT_BYTES[parameter_set],
         )
-    elif function == "encapsulationKeyCheck":
-        test["ek"] = require_hex_string(
-            require_field(test, "ek", path),
-            child_path(path, "ek"),
-            allow_empty=False,
-        )
     else:  # decapsulationKeyCheck
-        # Base FIPS203 carries dk in the prompt (required). FIPS203-tr1 emits
-        # keyFormat "none" for this function and supplies the key server-side,
-        # so the prompt carries no dk (optional).
-        if key_format == "none":
-            if "dk" in test:
-                test["dk"] = require_hex_string(
-                    test["dk"], child_path(path, "dk"), allow_empty=False
-                )
+        # keyFormat "none": no key in the prompt (NIST v1.1.0.43), only tcId.
+        # Otherwise the key may be intentionally malformed, so it is
+        # length-agnostic (a wrong length is itself a valid check reason).
+        if none_key:
+            return
+        if seed_key:
+            test["d"] = require_hex_string(
+                require_field(test, "d", path),
+                child_path(path, "d"),
+                allow_empty=False,
+            )
+            test["z"] = require_hex_string(
+                require_field(test, "z", path),
+                child_path(path, "z"),
+                allow_empty=False,
+            )
         else:
             test["dk"] = require_hex_string(
                 require_field(test, "dk", path),

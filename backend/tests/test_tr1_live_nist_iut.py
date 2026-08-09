@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 from typing import Any, Dict
@@ -25,7 +25,7 @@ FIXTURES = (
 pytestmark = pytest.mark.skipif(
     os.environ.get("NCCU_ACVP_LIVE_TR1") != "1",
     reason=(
-        "set NCCU_ACVP_LIVE_TR1=1, start the pinned Orleans host, and provide "
+        "set NCCU_ACVP_LIVE_TR1=1, start the patched pinned Orleans host, and provide "
         "DILITHIUM_PY_SRC/KYBER_PY_SRC to run real tr1 IUT acceptance"
     ),
 )
@@ -96,14 +96,18 @@ def test_mlkem_tr1_real_generation_iut_validation_and_mutation(
         "isSample": False,
         "parameterSets": ["ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"],
         "functions": [
-            "encapsulation", "decapsulation", "encapsulationKeyCheck"
+            "encapsulation", "decapsulation", "encapsulationKeyCheck",
+            "decapsulationKeyCheck",
         ],
         "keyFormats": ["seed", "expanded"],
     }
     case = _generate(registration, tmp_path / "mlkem")
     prompt = _load(case / "prompt.json")
+    assert len(prompt["testGroups"]) == 15
+    assert sum(len(group["tests"]) for group in prompt["testGroups"]) == 195
     assert {group["function"] for group in prompt["testGroups"]} == {
-        "encapsulation", "decapsulation", "encapsulationKeyCheck"
+        "encapsulation", "decapsulation", "encapsulationKeyCheck",
+        "decapsulationKeyCheck",
     }
     decapsulation = [
         group for group in prompt["testGroups"]
@@ -112,55 +116,105 @@ def test_mlkem_tr1_real_generation_iut_validation_and_mutation(
     assert {group["keyFormat"] for group in decapsulation} == {
         "expanded", "seed"
     }
-
-    _run_iut("mlkem-native", case, "KYBER_PY_SRC", "--kyber-py-src")
-    _assert_nist_validation(case, "response_pass_encapDecap.json", "passed")
-    _assert_nist_validation(case, "response_fail_encapDecap.json", "failed")
-
-
-def test_pinned_mlkem_generator_reproduces_decap_key_check_defect(
-    tmp_path: Path,
-) -> None:
-    registration = _fixture("ML-KEM-encapDecap-FIPS203-tr1", "registration.json")
-    case = _generate(registration, tmp_path / "mlkem-all-functions")
-    prompt = _load(case / "prompt.json")
-    groups = [
+    decapsulation_key_checks = [
         group for group in prompt["testGroups"]
         if group["function"] == "decapsulationKeyCheck"
     ]
-    assert groups
-    assert all(group["keyFormat"] == "none" for group in groups)
-    assert all(set(test) == {"tcId"} for group in groups for test in group["tests"])
-
-    corrected = _load(
-        FIXTURES / "ML-KEM-encapDecap-FIPS203-tr1" / "prompt.json"
-    )
-    corrected_groups = [
-        group for group in corrected["testGroups"]
-        if group["function"] == "decapsulationKeyCheck"
-    ]
-    assert all(group["keyFormat"] == "expanded" for group in corrected_groups)
+    assert {
+        group["parameterSet"] for group in decapsulation_key_checks
+    } == {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}
     assert all(
-        "dk" in test for group in corrected_groups for test in group["tests"]
+        group["keyFormat"] == "expanded"
+        for group in decapsulation_key_checks
+    )
+    assert all(
+        set(test) == {"tcId", "dk"}
+        for group in decapsulation_key_checks
+        for test in group["tests"]
     )
 
-    # The same pin contains a corrected official fixture. Prove that the IUT's
-    # expanded-dk path interoperates with its official internal projection even
-    # though fresh generation cannot currently reproduce that prompt shape.
-    corrected_case = tmp_path / "mlkem-corrected-fixture"
-    corrected_case.mkdir()
-    corrected_fixture = FIXTURES / "ML-KEM-encapDecap-FIPS203-tr1"
-    for name in ("prompt.json", "internalProjection.json"):
-        shutil.copy2(corrected_fixture / name, corrected_case / name)
-    _run_iut(
-        "mlkem-native", corrected_case, "KYBER_PY_SRC", "--kyber-py-src"
+    _run_iut("mlkem-native", case, "KYBER_PY_SRC", "--kyber-py-src")
+    _assert_nist_validation(case, "response_pass_encapDecap.json", "passed")
+    _write_function_mutation(
+        case,
+        prompt,
+        function="decapsulation",
+        field="k",
+        output_name="response_fail_shared_key.json",
+    )
+    _assert_nist_validation(case, "response_fail_shared_key.json", "failed")
+    _write_function_mutation(
+        case,
+        prompt,
+        function="decapsulationKeyCheck",
+        field="testPassed",
+        output_name="response_fail_decap_key_check.json",
     )
     _assert_nist_validation(
-        corrected_case, "response_pass_encapDecap.json", "passed"
+        case, "response_fail_decap_key_check.json", "failed"
     )
-    _assert_nist_validation(
-        corrected_case, "response_fail_encapDecap.json", "failed"
+
+
+@pytest.mark.parametrize(
+    (
+        "fixture_directory",
+        "runner_directory",
+        "source_env",
+        "source_flag",
+        "response_name",
+        "expected_groups",
+        "expected_tests",
+    ),
+    [
+        (
+            "ML-DSA-keyGen-FIPS204", "mldsa-native", "DILITHIUM_PY_SRC",
+            "--dilithium-py-src", "response_pass_keyGen.json", 3, 75,
+        ),
+        (
+            "ML-DSA-sigGen-FIPS204", "mldsa-native", "DILITHIUM_PY_SRC",
+            "--dilithium-py-src", "response_pass_sigGen.json", 24, 360,
+        ),
+        (
+            "ML-DSA-sigVer-FIPS204", "mldsa-native", "DILITHIUM_PY_SRC",
+            "--dilithium-py-src", "response_pass_sigVer.json", 12, 180,
+        ),
+        (
+            "ML-KEM-keyGen-FIPS203", "mlkem-native", "KYBER_PY_SRC",
+            "--kyber-py-src", "response_pass_keyGen.json", 3, 75,
+        ),
+        (
+            "ML-KEM-encapDecap-FIPS203", "mlkem-native", "KYBER_PY_SRC",
+            "--kyber-py-src", "response_pass_encapDecap.json", 12, 165,
+        ),
+    ],
+    ids=[
+        "mldsa-keygen-fips204",
+        "mldsa-siggen-fips204",
+        "mldsa-sigver-fips204",
+        "mlkem-keygen-fips203",
+        "mlkem-encapdecap-fips203",
+    ],
+)
+def test_legacy_identity_real_generation_iut_validation(
+    tmp_path: Path,
+    fixture_directory: str,
+    runner_directory: str,
+    source_env: str,
+    source_flag: str,
+    response_name: str,
+    expected_groups: int,
+    expected_tests: int,
+) -> None:
+    registration = _fixture(fixture_directory, "registration.json")
+    case = _generate(registration, tmp_path / fixture_directory)
+    prompt = _load(case / "prompt.json")
+    assert len(prompt["testGroups"]) == expected_groups
+    assert (
+        sum(len(group["tests"]) for group in prompt["testGroups"])
+        == expected_tests
     )
+    _run_iut(runner_directory, case, source_env, source_flag)
+    _assert_nist_validation(case, response_name, "passed")
 
 
 def _generate(registration: Dict[str, Any], case: Path) -> Path:
@@ -208,6 +262,31 @@ def _assert_nist_validation(
     validation = _load(case / "validation.json")
     assert validation["disposition"] == disposition
     assert result.returncode == (0 if disposition == "passed" else 13)
+
+
+def _write_function_mutation(
+    case: Path,
+    prompt: Dict[str, Any],
+    *,
+    function: str,
+    field: str,
+    output_name: str,
+) -> None:
+    response = copy.deepcopy(_load(case / "response_pass_encapDecap.json"))
+    function_by_group = {
+        group["tgId"]: group["function"] for group in prompt["testGroups"]
+    }
+    group = next(
+        group for group in response["testGroups"]
+        if function_by_group[group["tgId"]] == function
+    )
+    test = group["tests"][0]
+    if field == "testPassed":
+        test[field] = not test[field]
+    else:
+        value = test[field]
+        test[field] = ("0" if value[0].upper() != "0" else "1") + value[1:]
+    (case / output_name).write_text(json.dumps(response, indent=2) + "\n")
 
 
 def _genval(*arguments: Any, check: bool = True) -> subprocess.CompletedProcess[str]:

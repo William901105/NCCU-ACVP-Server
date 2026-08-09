@@ -176,6 +176,12 @@ def _validate_encap_decap_group(
         code="invalid_function",
     )
     key_format = "expanded"
+    if (
+        supports_key_formats
+        and function == "decapsulationKeyCheck"
+        and "keyFormat" not in group
+    ):
+        require_field(group, "keyFormat", path)
     if "keyFormat" in group:
         if not supports_key_formats:
             raise AcvpSchemaError(
@@ -188,6 +194,16 @@ def _validate_encap_decap_group(
             GROUP_KEY_FORMATS,
             child_path(path, "keyFormat"),
             code="invalid_key_format",
+        )
+    if (
+        supports_key_formats
+        and function == "decapsulationKeyCheck"
+        and key_format != "expanded"
+    ):
+        raise AcvpSchemaError(
+            "invalid_key_format",
+            "FIPS203-tr1 decapsulationKeyCheck keyFormat must be expanded",
+            child_path(path, "keyFormat"),
         )
     test_type = require_string(
         require_field(group, "testType", path),
@@ -216,15 +232,11 @@ def _validate_encap_decap_test(
     # Under FIPS203-tr1, keyFormat controls how the decapsulation key is carried:
     #   "seed"     -> separate d(32) and z(32) fields (the IUT expands them to dk)
     #   "expanded" -> the full dk
-    #   "none"     -> no key at all (decapsulationKeyCheck only; NIST GenVal
-    #                 v1.1.0.43 emits this and supplies no key in the prompt, see
-    #                 docs/mlkem-fips203-tr1-spec.md 3.3)
-    # decapsulation and decapsulationKeyCheck share the same seed/expanded/none
-    # key shapes. A key *check* (decapsulationKeyCheck) may present an
+    # FIPS203-tr1 decapsulationKeyCheck is fixed to "expanded" and carries dk.
+    # A key *check* may present an
     # intentionally malformed key, so its key material is length-agnostic;
     # a real decapsulation enforces exact lengths.
     seed_key = key_format == "seed"
-    none_key = key_format == "none"
 
     if function == "encapsulation":
         fields = {"tcId", "ek", "m"}
@@ -233,10 +245,7 @@ def _validate_encap_decap_test(
     elif function == "decapsulation":
         fields = {"tcId", "c"} | ({"d", "z"} if seed_key else {"dk"})
     else:  # decapsulationKeyCheck
-        if none_key:
-            fields = {"tcId"}
-        else:
-            fields = {"tcId"} | ({"d", "z"} if seed_key else {"dk"})
+        fields = {"tcId", "dk"}
     require_allowed_fields(test, fields, path)
     require_int(require_field(test, "tcId", path), child_path(path, "tcId"))
 
@@ -288,25 +297,10 @@ def _validate_encap_decap_test(
             exact_bytes=CIPHERTEXT_BYTES[parameter_set],
         )
     else:  # decapsulationKeyCheck
-        # keyFormat "none": no key in the prompt (NIST v1.1.0.43), only tcId.
-        # Otherwise the key may be intentionally malformed, so it is
+        # The expanded key may be intentionally malformed, so it is
         # length-agnostic (a wrong length is itself a valid check reason).
-        if none_key:
-            return
-        if seed_key:
-            test["d"] = require_hex_string(
-                require_field(test, "d", path),
-                child_path(path, "d"),
-                allow_empty=False,
-            )
-            test["z"] = require_hex_string(
-                require_field(test, "z", path),
-                child_path(path, "z"),
-                allow_empty=False,
-            )
-        else:
-            test["dk"] = require_hex_string(
-                require_field(test, "dk", path),
-                child_path(path, "dk"),
-                allow_empty=False,
-            )
+        test["dk"] = require_hex_string(
+            require_field(test, "dk", path),
+            child_path(path, "dk"),
+            allow_empty=False,
+        )

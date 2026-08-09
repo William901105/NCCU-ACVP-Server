@@ -12,10 +12,9 @@ REVISIONS = {REVISION, REVISION_TR1}
 # Registrable private-key formats, applicable only to
 # ML-KEM / encapDecap / FIPS203-tr1 (the formats an IUT may advertise).
 KEY_FORMATS = {"expanded", "seed"}
-# Per-testGroup keyFormat values understood by the pinned GenVal schemas.
-# Decapsulation carries "seed" or "expanded". Fresh generation currently leaves
-# key-check/non-private groups at the enum default "none"; the corrected official
-# decapsulationKeyCheck fixture instead carries "expanded" plus dk.
+# Per-testGroup keyFormat values emitted by GenVal. Decapsulation carries
+# "seed" or "expanded"; non-private groups use the enum default "none"; the
+# locally patched decapsulationKeyCheck group carries "expanded" plus dk.
 GROUP_KEY_FORMATS = {"none", "seed", "expanded"}
 # The seed key format carries the decapsulation key as separate d(32) and z(32)
 # fields (not a single concatenated seed); the IUT expands them to the dk.

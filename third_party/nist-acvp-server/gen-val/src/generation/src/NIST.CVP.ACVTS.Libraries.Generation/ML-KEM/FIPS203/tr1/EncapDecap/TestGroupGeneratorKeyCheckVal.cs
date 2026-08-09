@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using NIST.CVP.ACVTS.Libraries.Crypto.Common.PQC.Enums;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.PQC.MLKEM;
 using NIST.CVP.ACVTS.Libraries.Generation.Core;
 using NIST.CVP.ACVTS.Libraries.Generation.ML_KEM.FIPS203.tr1.EncapDecap.TestCaseExpectations;
@@ -22,6 +23,7 @@ public class TestGroupGeneratorKeyCheckVal : ITestGroupGeneratorAsync<Parameters
                     TestType = "VAL",
                     Function = MLKEMFunction.DecapsulationKeyCheck,
                     ParameterSet = parameterSet,
+                    KeyFormat = PrivateKeyFormat.Expanded,
                     DecapsulationKeyExpectationProvider = new DecapsulationKeyExpectationProvider()
                 });
             }

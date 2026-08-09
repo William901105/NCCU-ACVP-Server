@@ -6,8 +6,15 @@
 - source git describe: v1.1.0.43-4-ga7f283cd
 - copied timestamp: 2026-08-09T05:16:57Z
 - selection reason: latest official master commit as of 2026-08-09; includes v1.1.0.43 tr1 support and the post-release official fixture corrections.
+- local patch: scripts/nist/patches/a7f283cd-mlkem-tr1-decap-keycheck-keyformat.patch
+- local patch sha256: d421d216a21d0ea38a596342dee6a4144598f33fd40b7b58d4a5916203573ade
+- local patch purpose: set FIPS203-tr1 decapsulationKeyCheck test-group KeyFormat to Expanded so prompt projection includes dk.
 - integration note: NIST code is copied into this repository; it is not a git submodule.
 
 This directory vendors the NIST ACVP-Server Gen/Val code needed by the NCCU
 ACVP Server integration. Re-run scripts/nist/copy_nist_genval.sh to refresh it
 from a local NIST ACVP-Server checkout.
+
+This is not an unmodified official NIST GenVal source tree. It is the exact
+official source commit above plus the single local compatibility patch recorded
+in NIST_PATCHES.md.

@@ -115,22 +115,23 @@ def test_tr1_prompt_seed_decapsulation_uses_d_and_z() -> None:
     assert test["z"] == ("CD" * 32).upper()
 
 
-def test_tr1_prompt_keyformat_none_and_optional_dk_key_check() -> None:
-    # encapsulation / keyChecks carry keyFormat "none"; decapsulationKeyCheck
-    # prompts carry no key material (only tcId).
+def test_tr1_prompt_uses_none_for_non_private_groups_and_expanded_dk_for_dck() -> None:
     prompt = {
         "vsId": 1, "algorithm": "ML-KEM", "mode": "encapDecap",
         "revision": "FIPS203-tr1", "isSample": True,
         "testGroups": [
             _group(1, "encapsulation", "none",
                    [{"tcId": 1, "ek": "AB" * 800, "m": "CD" * 32}], test_type="AFT"),
-            _group(2, "decapsulationKeyCheck", "none", [{"tcId": 2}]),
+            _group(2, "decapsulationKeyCheck", "expanded",
+                   [{"tcId": 2, "dk": "AB"}]),
             _group(3, "encapsulationKeyCheck", "none", [{"tcId": 3, "ek": "AB" * 800}]),
         ],
     }
     validated = validate_vector_set(prompt, revision="FIPS203-tr1")
-    assert [g["keyFormat"] for g in validated["testGroups"]] == ["none", "none", "none"]
-    assert validated["testGroups"][1]["tests"][0] == {"tcId": 2}
+    assert [g["keyFormat"] for g in validated["testGroups"]] == [
+        "none", "expanded", "none"
+    ]
+    assert validated["testGroups"][1]["tests"][0] == {"tcId": 2, "dk": "AB"}
 
 
 def test_real_nist_tr1_sample_prompt_validates() -> None:
@@ -175,8 +176,7 @@ def test_base_prompt_rejects_key_format_field() -> None:
         validate_vector_set(prompt, revision="FIPS203")
 
 
-# --- #3: harness response (empty decapsulationKeyCheck shape) must round-trip
-# through the server's own response schema, not just the prompt schema. ---
+# --- #3: an empty decapsulationKeyCheck response must not pass the schema. ---
 
 def _tr1_response(groups):
     return {
@@ -265,20 +265,36 @@ def test_tr1_key_check_only_registration_accepts_optional_key_formats() -> None:
     assert normalized["keyFormats"] == ["expanded"]
 
 
-# --- #9: decapsulationKeyCheck shares seed/expanded key shapes with
-# decapsulation (forward-compatible with a fixed GenVal). ---
+# --- #9: the patched prompt contract fixes decapsulationKeyCheck to expanded. ---
 
-def test_tr1_prompt_decap_key_check_seed_is_accepted() -> None:
+@pytest.mark.parametrize("key_format", ["none", "seed"])
+def test_tr1_prompt_decap_key_check_rejects_wrong_key_format(key_format: str) -> None:
     prompt = {
         "vsId": 1, "algorithm": "ML-KEM", "mode": "encapDecap",
         "revision": "FIPS203-tr1", "isSample": True,
         "testGroups": [
-            _group(1, "decapsulationKeyCheck", "seed",
+            _group(1, "decapsulationKeyCheck", key_format,
                    [{"tcId": 1, "d": "AB" * 32, "z": "CD" * 32}]),
         ],
     }
-    validated = validate_vector_set(prompt, revision="FIPS203-tr1")
-    assert set(validated["testGroups"][0]["tests"][0]) == {"tcId", "d", "z"}
+    with pytest.raises(AcvpSchemaError) as exc:
+        validate_vector_set(prompt, revision="FIPS203-tr1")
+    assert exc.value.code == "invalid_key_format"
+    assert exc.value.path == "$.testGroups[0].keyFormat"
+
+
+def test_tr1_prompt_decap_key_check_requires_key_format() -> None:
+    group = _group(1, "decapsulationKeyCheck", "expanded",
+                   [{"tcId": 1, "dk": "AB"}])
+    group.pop("keyFormat")
+    prompt = {
+        "vsId": 1, "algorithm": "ML-KEM", "mode": "encapDecap",
+        "revision": "FIPS203-tr1", "isSample": True, "testGroups": [group],
+    }
+    with pytest.raises(AcvpSchemaError) as exc:
+        validate_vector_set(prompt, revision="FIPS203-tr1")
+    assert exc.value.code == "missing_required_field"
+    assert exc.value.path == "$.testGroups[0].keyFormat"
 
 
 # --- #20: keyFormats in a context that forbids it yields a precise

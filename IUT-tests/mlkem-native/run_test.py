@@ -336,13 +336,9 @@ def _generate_test_response(
             return {"tcId": tc_id, "testPassed": _encapsulation_key_valid(ml_kem, ek)}
 
         if function == "decapsulationKeyCheck":
-            # The pinned NIST GenVal commit emits the decapsulationKeyCheck group with
-            # keyFormat "none", so the prompt carries NO decapsulation key (only
-            # tcId) -- see docs/mlkem-fips203-tr1-spec.md 3.3. This is a NIST-side
-            # defect (the keyCheck group is generated without a KeyFormat, unlike
-            # decapsulation VAL groups). With no key to inspect, a conformant IUT
-            # cannot compute testPassed, so emit only the tcId. If a future GenVal
-            # supplies the key (expanded dk, or seed d+z), check it as usual.
+            # The documented local GenVal patch emits expanded dk. Retain the
+            # seed path for compatible external prompts, but never fabricate a
+            # result when no private-key material is present.
             key_format = group.get("keyFormat", "expanded")
             if "dk" in test:
                 dk = _hex_bytes(_required_lookup(test, group, "dk"), "dk")
@@ -353,7 +349,7 @@ def _generate_test_response(
             else:
                 raise IutRunnerError(
                     "decapsulationKeyCheck prompt contains no dk or d+z; "
-                    "the pinned NIST generator cannot produce a computable response"
+                    "a prompt-only IUT cannot produce a computable response"
                 )
             return {"tcId": tc_id, "testPassed": _decapsulation_key_valid(ml_kem, dk)}
 

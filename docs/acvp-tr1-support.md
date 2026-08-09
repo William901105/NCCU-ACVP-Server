@@ -16,6 +16,11 @@ advertise, so legacy and tr1 registrations remain independently selectable.
 - Nearest upstream release/tag: `v1.1.0.43`
 - Git description: `v1.1.0.43-4-ga7f283cd` (latest fetched `master` on
   2026-08-09)
+- Upstream commit date: `2026-07-31T13:00:12-04:00`
+- Local compatibility patch:
+  `scripts/nist/patches/a7f283cd-mlkem-tr1-decap-keycheck-keyformat.patch`
+- Patch SHA-256:
+  `d421d216a21d0ea38a596342dee6a4144598f33fd40b7b58d4a5916203573ade`
 - Relevant implementation paths:
   - `gen-val/src/generation/src/NIST.CVP.ACVTS.Libraries.Generation/ML-DSA/FIPS204/tr1/SigGen/`
   - `gen-val/src/generation/src/NIST.CVP.ACVTS.Libraries.Generation/ML-KEM/FIPS203/tr1/EncapDecap/`
@@ -23,10 +28,15 @@ advertise, so legacy and tr1 registrations remain independently selectable.
   - `gen-val/json-files/ML-DSA-sigGen-FIPS204-tr1/`
   - `gen-val/json-files/ML-KEM-encapDecap-FIPS203-tr1/`
 
-The copy script rejects any source checkout whose HEAD is not the exact pinned
-SHA. The build script repeats that check, prints the SHA, and publishes with
-`-m:1`; serial MSBuild avoids a restore-graph race observed with this source and
-the installed .NET 8 SDK.
+The official upstream `master` still omitted the ML-KEM tr1
+`decapsulationKeyCheck` key-format assignment when rechecked on 2026-08-09.
+This is therefore not an unmodified official NIST GenVal source tree: it is the
+exact official commit above plus one documented compatibility patch. The copy
+script rejects any other source SHA, verifies the patch hash, and applies the
+patch. The build script rechecks all three facts and publishes with `-m:1`;
+serial MSBuild avoids a restore-graph race observed with this source and the
+installed .NET 8 SDK. See
+`third_party/nist-acvp-server/{NIST_SOURCE,NIST_PATCHES}.md`.
 
 ## Supported identity matrix
 
@@ -77,29 +87,24 @@ not silently guessed away.
    it for sigGen tr1 and rejects it for legacy.
 4. At commit `a7f283cd`, the checked-in ML-KEM tr1 fixture was corrected after
    v1.1.0.43 so `decapsulationKeyCheck` groups carry `keyFormat: expanded` and
-   each test carries `dk`. The generator source was not corrected:
-   `TestGroupGeneratorKeyCheckVal` does not set `KeyFormat`; the enum defaults
-   to `none`, and `PromptProjectionContractResolver` then emits neither `dk`
-   nor `d,z`. A fresh run of the pinned executable reproduced groups containing
-   only `tcId`. Non-private-key groups also differ: fresh generation emits
-   `keyFormat: none`, while the corrected fixture may omit the property.
-
-The fourth discrepancy is an upstream acceptance blocker for freshly generated
-`decapsulationKeyCheck`: an IUT restricted to `prompt.json` cannot decide
-`testPassed`. This project accepts the actual prompt shape structurally but the
-IUT fails explicitly when key material is absent. It never reads internal or
-expected artifacts and never fabricates an empty successful response. The
-corrected official fixture proves the expanded `dk` path and remains covered by
-tests. Fresh real-oracle acceptance covers the other three functions until NIST
-aligns generator source with its corrected fixture.
+   each test carries `dk`, but `TestGroupGeneratorKeyCheckVal` still omitted
+   `KeyFormat`. Because `PrivateKeyFormat.None` is the zero/default value,
+   `PromptProjectionContractResolver` emitted neither `dk` nor `d,z`. A fresh
+   unpatched run reproduced three groups/30 tests with `keyFormat: none` and
+   only `tcId`. The local patch assigns `PrivateKeyFormat.Expanded` at that
+   test-group metadata source. It does not change enum ordering, projection,
+   validation, or the IUT. A focused generation-library test asserts the group
+   metadata, and fresh projection tests require `keyFormat: expanded` plus `dk`
+   in every `decapsulationKeyCheck` test.
 
 ## Trust boundary
 
 The server validates protocol shape, negotiates exact identities, stores
 artifacts, and invokes NIST. It does not compute expected cryptographic answers.
-Official NIST GenVal creates `prompt.json`, `internalProjection.json`, and
-`expectedResults.json`, and validates responses. The IUT receives only the
-prompt and performs ML-DSA/ML-KEM operations using independent libraries.
+The patched NIST GenVal build creates `prompt.json`, `internalProjection.json`,
+and `expectedResults.json`, and performs response validation. The IUT receives
+only the public prompt and performs ML-DSA/ML-KEM operations using independent
+libraries. It has no CLI argument or code path for either internal artifact.
 
 ## Build and acceptance
 
@@ -123,19 +128,27 @@ both`; official validation must pass the normal response and fail the mutation.
 
 Acceptance executed 2026-08-09 with the binaries built from the pinned source:
 
-| Identity/case | Official groups/tests | Result |
+| Identity/case | GenVal groups/tests | Result |
 |---|---:|---|
 | ML-DSA sigGen FIPS204-tr1, complete registration | 48 / 720 | IUT 720 passed; mutated signature failed |
-| ML-KEM encapDecap FIPS203-tr1, encapsulation + decapsulation + encapsulationKeyCheck | 12 / 165 | IUT 165 passed; mutated shared key failed |
-| ML-KEM encapDecap FIPS203-tr1, corrected official complete fixture | 15 / 195 | IUT 195 passed; mutations failed, including expanded decapsulationKeyCheck |
-| ML-KEM encapDecap FIPS203-tr1, fresh decapsulationKeyCheck | 3 / 30 | blocked by reproduced upstream missing-key defect |
+| ML-KEM encapDecap FIPS203-tr1, fresh all-four-function registration | 15 / 195 | prompt-only IUT 195 passed; mutated shared key and decapsulationKeyCheck `testPassed` each failed |
 | ML-DSA keyGen FIPS204 | 3 / 75 | passed |
 | ML-DSA sigGen FIPS204 | 24 / 360 | passed |
 | ML-DSA sigVer FIPS204 | 12 / 180 | passed |
 | ML-KEM keyGen FIPS203 | 3 / 75 | passed |
 | ML-KEM encapDecap FIPS203 | 12 / 165 | passed |
 
-Official GenVal returns exit code 0 with `disposition: passed`. The mutated tr1
-responses returned exit code 13 with `disposition: failed`; the first ML-DSA
-failure reason was `Incorrect signature`, and the first ML-KEM reason was
-`SharedKey does not match expected valid shared key`.
+The patched GenVal returns exit code 0 with `disposition: passed`. Mutated tr1
+responses return exit code 13 with `disposition: failed`. The same all-four
+ML-KEM flow is also exercised through frontend-shaped registration, backend
+schema/mapping, GenVal generation, prompt storage/download, prompt-only IUT,
+response submission, GenVal validation, and normalized project results.
+
+The complete backend run, with the task's real tr1 tests enabled, reported
+`264 passed, 4 skipped`. Those four are the pre-existing Stage 6 opt-in tests:
+the three Orleans-available paths were then enabled separately and reported
+`3 passed`, while the Orleans-unavailable path was run after shutdown and
+reported `1 passed`. Frontend verification reported 24/24 unit tests, a clean
+standalone TypeScript check, and a successful Vite production build. The
+focused NIST generation-library metadata test reported 1/1 passed. Python
+compileall, shell syntax checks, and diff whitespace checks also passed.

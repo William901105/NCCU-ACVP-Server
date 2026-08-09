@@ -15,9 +15,6 @@ public class TestGroup : ITestGroup<TestGroup, TestCase>
     [JsonIgnore]
     public MathDomain KeyLength { get; set; }
 
-    [JsonIgnore]
-    public MathDomain THLength { get; set; }
-
     public HashFunctions HashFunction { get; set; }
     public SPDMVersions Version { get; set; }
     public bool UsesPSK { get; set; }

@@ -18,6 +18,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 
 SUPPORTED_MODES = {"keyGen", "sigGen", "sigVer"}
+SUPPORTED_IDENTITIES = {
+    ("ML-DSA", "keyGen", "FIPS204"),
+    ("ML-DSA", "sigGen", "FIPS204"),
+    ("ML-DSA", "sigGen", "FIPS204-tr1"),
+    ("ML-DSA", "sigVer", "FIPS204"),
+}
 PARAMETER_OBJECTS = {
     "ML-DSA-44": "ML_DSA_44",
     "ML-DSA-65": "ML_DSA_65",
@@ -97,9 +103,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         response_dir = Path(args.response_dir)
         prompt = _read_json(prompt_path)
         vector_set = _acvp_body(prompt)
+        algorithm = _required_string(vector_set, "algorithm", "$.algorithm")
         mode = _required_string(vector_set, "mode", "$.mode")
-        if mode not in SUPPORTED_MODES:
-            raise IutRunnerError(f"unsupported ML-DSA mode: {mode!r}")
+        revision = _required_string(vector_set, "revision", "$.revision")
+        _require_supported_identity(algorithm, mode, revision)
         if args.expect_mode and mode != args.expect_mode:
             raise IutRunnerError(
                 f"prompt mode {mode!r} does not match expected mode {args.expect_mode!r}"
@@ -336,11 +343,12 @@ def _purge_modules(prefix: str) -> None:
 
 def _generate_response(vector_set: Dict[str, Any], crypto: CryptoBackend) -> Dict[str, Any]:
     mode = _required_string(vector_set, "mode", "$.mode")
+    revision = _required_string(vector_set, "revision", "$.revision")
     body: Dict[str, Any] = {
         "vsId": vector_set.get("vsId"),
         "algorithm": vector_set.get("algorithm", "ML-DSA"),
         "mode": mode,
-        "revision": vector_set.get("revision", "FIPS204"),
+        "revision": revision,
         "testGroups": [],
     }
     groups = vector_set.get("testGroups")
@@ -361,7 +369,9 @@ def _generate_response(vector_set: Dict[str, Any], crypto: CryptoBackend) -> Dic
                     f"$.testGroups[{group_index}].tests[{test_index}] must be an object"
                 )
             response_group["tests"].append(
-                _generate_test_response(mode, parameter_set, group, test, crypto)
+                _generate_test_response(
+                    mode, revision, parameter_set, group, test, crypto
+                )
             )
         body["testGroups"].append(response_group)
     return body
@@ -369,6 +379,7 @@ def _generate_response(vector_set: Dict[str, Any], crypto: CryptoBackend) -> Dic
 
 def _generate_test_response(
     mode: str,
+    revision: str,
     parameter_set: str,
     group: Dict[str, Any],
     test: Dict[str, Any],
@@ -383,8 +394,19 @@ def _generate_test_response(
 
     if mode == "sigGen":
         ml_dsa = crypto.parameter(parameter_set)
-        sk = _hex_bytes(_required_lookup(test, group, "sk"), "sk")
-        signature = _sign_test(ml_dsa, group, test)
+        key_format = str(group.get("keyFormat", "expanded"))
+        if revision == "FIPS204-tr1" and key_format == "seed":
+            seed = _hex_bytes(
+                _required_lookup(test, group, "seed"), "seed", expected_len=32
+            )
+            _pk, sk = ml_dsa.key_derive(seed)
+        elif key_format == "expanded":
+            sk = _hex_bytes(_required_lookup(test, group, "sk"), "sk")
+        else:
+            raise IutRunnerError(
+                f"unsupported ML-DSA sigGen keyFormat: {key_format!r}"
+            )
+        signature = _sign_test(ml_dsa, group, test, sk)
         return {"tcId": tc_id, "signature": signature.hex().upper()}
 
     if mode == "sigVer":
@@ -394,8 +416,9 @@ def _generate_test_response(
     raise IutRunnerError(f"unsupported ML-DSA mode: {mode!r}")
 
 
-def _sign_test(ml_dsa: Any, group: Dict[str, Any], test: Dict[str, Any]) -> bytes:
-    sk = _hex_bytes(_required_lookup(test, group, "sk"), "sk")
+def _sign_test(
+    ml_dsa: Any, group: Dict[str, Any], test: Dict[str, Any], sk: bytes
+) -> bytes:
     deterministic = bool(group.get("deterministic", True))
     rnd = _signing_rnd(test, deterministic)
     signature_interface = str(group.get("signatureInterface", "internal"))
@@ -408,6 +431,15 @@ def _sign_test(ml_dsa: Any, group: Dict[str, Any], test: Dict[str, Any]) -> byte
     if signature_interface == "external":
         return ml_dsa._sign_internal(sk, _formatted_message(group, test, message), rnd)
     return ml_dsa._sign_internal(sk, message, rnd)
+
+
+def _require_supported_identity(algorithm: str, mode: str, revision: str) -> None:
+    identity = (algorithm, mode, revision)
+    if identity not in SUPPORTED_IDENTITIES:
+        raise IutRunnerError(
+            "unsupported ML-DSA algorithm/mode/revision identity: "
+            f"{algorithm}/{mode}/{revision}"
+        )
 
 
 def _verify_test(

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildRegistrationAlgorithms } from "./registration";
 import { getFipsConfig } from "./registry";
 import type {
+  AcvpRevision,
   JsonObject,
   MlKemFunction,
   MlKemParameterSet,
@@ -18,26 +19,30 @@ const DSA_ONLY_FIELDS = [
 
 function buildFips204(
   mode: "keyGen" | "sigGen" | "sigVer",
-  parameterSets: readonly MldsaParameterSet[] = ["ML-DSA-44"]
+  parameterSets: readonly MldsaParameterSet[] = ["ML-DSA-44"],
+  revision?: AcvpRevision
 ) {
   return buildRegistrationAlgorithms({
     config: getFipsConfig("FIPS204"),
     modes: [mode],
     parameterSets: [...parameterSets],
-    functions: []
+    functions: [],
+    revisions: revision ? { [mode]: revision } : undefined
   })[0];
 }
 
 function buildFips203(
   modes: ("keyGen" | "encapDecap")[],
   functions: readonly MlKemFunction[] = ["encapsulation", "decapsulation"],
-  parameterSets: readonly MlKemParameterSet[] = ["ML-KEM-512"]
+  parameterSets: readonly MlKemParameterSet[] = ["ML-KEM-512"],
+  revision?: AcvpRevision
 ) {
   return buildRegistrationAlgorithms({
     config: getFipsConfig("FIPS203"),
     modes,
     parameterSets: [...parameterSets],
-    functions: [...functions]
+    functions: [...functions],
+    revisions: revision ? { encapDecap: revision } : undefined
   });
 }
 
@@ -56,6 +61,8 @@ describe("registration builder", () => {
   it("builds ML-DSA sigGen with deterministic signature capabilities", () => {
     const registration = buildFips204("sigGen");
     expect(registration.deterministic).toEqual([true, false]);
+    expect(registration.revision).toBe("FIPS204-tr1");
+    expect(registration.keyFormats).toEqual(["expanded", "seed"]);
     expect(registration.signatureInterfaces).toEqual(["internal", "external"]);
     expect(registration.externalMu).toEqual([false, true]);
     expect(registration.preHash).toEqual(["pure", "preHash"]);
@@ -67,6 +74,12 @@ describe("registration builder", () => {
         hashAlgs: ["SHA2-256"]
       }
     ]);
+  });
+
+  it("keeps legacy ML-DSA sigGen selectable", () => {
+    const registration = buildFips204("sigGen", ["ML-DSA-44"], "FIPS204");
+    expect(registration.revision).toBe("FIPS204");
+    expect(registration).not.toHaveProperty("keyFormats");
   });
 
   it("builds ML-DSA sigVer without deterministic", () => {
@@ -90,6 +103,16 @@ describe("registration builder", () => {
     const [registration] = buildFips203(["encapDecap"]);
     expect(registration.functions).toEqual(["encapsulation", "decapsulation"]);
     expect(registration.mode).toBe("encapDecap");
+    expect(registration.revision).toBe("FIPS203-tr1");
+    expect(registration.keyFormats).toEqual(["expanded", "seed"]);
+  });
+
+  it("keeps legacy ML-KEM encapDecap selectable", () => {
+    const [registration] = buildFips203(
+      ["encapDecap"], ["decapsulation"], ["ML-KEM-512"], "FIPS203"
+    );
+    expect(registration.revision).toBe("FIPS203");
+    expect(registration).not.toHaveProperty("keyFormats");
   });
 
   it("builds two ML-KEM mode registrations", () => {

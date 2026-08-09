@@ -281,32 +281,38 @@ def _module_not_found_schema_error(
     path: str,
 ) -> AcvpSchemaError:
     identity = exc.identity
-    descriptors = registry.list_descriptors()
-    descriptor = next(
-        (
-            item
-            for item in descriptors
-            if item.get("algorithm") == identity.algorithm
-        ),
-        None,
+    identities = registry.identities()
+    algorithm_identities = tuple(
+        item for item in identities if item.algorithm == identity.algorithm
     )
-    if descriptor is None:
+    if not algorithm_identities:
         return AcvpSchemaError(
             "unsupported_algorithm",
             f"Unsupported algorithm module: {identity.algorithm}",
             _child_path(path, "algorithm"),
         )
 
-    if descriptor.get("revision") != identity.revision:
+    supported_modes = {item.mode for item in algorithm_identities}
+    supported_revisions = {item.revision for item in algorithm_identities}
+    if identity.mode not in supported_modes:
+        return AcvpSchemaError(
+            "invalid_mode",
+            f"Unsupported mode for {identity.algorithm}: {identity.mode}",
+            _child_path(path, "mode"),
+        )
+    if identity.revision not in supported_revisions:
         return AcvpSchemaError(
             "unsupported_revision",
             f"Unsupported revision for {identity.algorithm}: {identity.revision}",
             _child_path(path, "revision"),
         )
     return AcvpSchemaError(
-        "invalid_mode",
-        f"Unsupported mode for {identity.algorithm}/{identity.revision}: {identity.mode}",
-        _child_path(path, "mode"),
+        "unsupported_mode_revision_combination",
+        (
+            f"Unsupported mode/revision combination for {identity.algorithm}: "
+            f"{identity.mode}/{identity.revision}"
+        ),
+        _child_path(path, "revision"),
     )
 
 

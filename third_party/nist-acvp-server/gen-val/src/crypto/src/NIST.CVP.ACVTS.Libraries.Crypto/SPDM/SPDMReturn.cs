@@ -2,7 +2,7 @@
 
 namespace NIST.CVP.ACVTS.Libraries.Crypto.SPDM;
 
-public class SPDMReturn
+public class SpdmReturn
 {
     public BitString RequestDirectionHandshake { get; set; }
     public BitString ResponseDirectionHandshake { get; set; }

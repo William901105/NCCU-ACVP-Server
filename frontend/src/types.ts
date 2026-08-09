@@ -36,6 +36,11 @@ export interface AcvpVectorSet {
 }
 
 export type FipsVersionId = "FIPS203" | "FIPS204";
+export type AcvpRevision =
+  | "FIPS203"
+  | "FIPS203-tr1"
+  | "FIPS204"
+  | "FIPS204-tr1";
 export type CapabilityMode = "keyGen" | "sigGen" | "sigVer" | "encapDecap";
 export type MlKemFunction =
   | "encapsulation"
@@ -50,13 +55,15 @@ export interface CapabilityModeConfig {
   id: CapabilityMode;
   label: string;
   enabled: boolean;
+  revisions: AcvpRevision[];
+  defaultRevision: AcvpRevision;
 }
 
 export interface FipsVersionConfig {
   id: FipsVersionId;
   label: string;
   algorithm: "ML-DSA" | "ML-KEM";
-  revision: FipsVersionId;
+  revision: AcvpRevision;
   enabled: boolean;
   status: "available" | "in-development";
   disabledReason?: string;

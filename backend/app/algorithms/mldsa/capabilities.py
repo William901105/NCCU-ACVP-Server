@@ -17,6 +17,7 @@ from .constants import (
     PARAMETER_SETS,
     PRE_HASH_VALUES,
     REVISION,
+    REVISION_TR1,
     SIGNATURE_INTERFACES,
 )
 from .validators import validate_mldsa_registration
@@ -56,7 +57,9 @@ def is_registration_container(payload: Any) -> bool:
     return isinstance(payload, dict) and isinstance(payload.get("algorithms"), list)
 
 
-def validate_registration_container(payload: Any) -> Dict[str, Any]:
+def validate_registration_container(
+    payload: Any, *, revision: str = REVISION
+) -> Dict[str, Any]:
     obj = require_object(payload, "$")
     algorithms = require_array(
         require_field(obj, "algorithms", "$"),
@@ -71,16 +74,18 @@ def validate_registration_container(payload: Any) -> Dict[str, Any]:
         item_path = child_path("$.algorithms", index)
         require_object(item, item_path)
         try:
-            normalized = validate_mldsa_registration(item)
+            normalized = validate_mldsa_registration(item, revision=revision)
         except AcvpSchemaError as exc:
             raise _with_algorithm_path(exc, item_path) from exc
 
         algorithm = normalized.get("algorithm")
         mode = normalized.get("mode")
-        revision = normalized.get("revision")
-        _require_supported_registration_identity(algorithm, mode, revision, item_path)
+        registration_revision = normalized.get("revision")
+        _require_supported_registration_identity(
+            algorithm, mode, registration_revision, item_path, revision
+        )
 
-        key = (str(algorithm), str(mode), str(revision))
+        key = (str(algorithm), str(mode), str(registration_revision))
         if key in seen:
             raise AcvpSchemaError(
                 "duplicate_registration",
@@ -105,7 +110,9 @@ def validate_registration_container(payload: Any) -> Dict[str, Any]:
     return container
 
 
-def negotiate_mldsa_capabilities(container: Dict[str, Any]) -> Dict[str, Any]:
+def negotiate_mldsa_capabilities(
+    container: Dict[str, Any], *, revision: str = REVISION
+) -> Dict[str, Any]:
     negotiated: List[Dict[str, Any]] = []
     unsupported: List[Dict[str, Any]] = []
     warnings: List[Dict[str, Any]] = []
@@ -115,9 +122,13 @@ def negotiate_mldsa_capabilities(container: Dict[str, Any]) -> Dict[str, Any]:
         if mode == "keyGen":
             result = _negotiate_keygen(registration, unsupported)
         elif mode == "sigGen":
-            result = _negotiate_signature_mode(registration, unsupported, warnings)
+            result = _negotiate_signature_mode(
+                registration, unsupported, warnings, revision
+            )
         elif mode == "sigVer":
-            result = _negotiate_signature_mode(registration, unsupported, warnings)
+            result = _negotiate_signature_mode(
+                registration, unsupported, warnings, revision
+            )
         else:
             result = None
             unsupported.append(
@@ -136,7 +147,7 @@ def negotiate_mldsa_capabilities(container: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "algorithm": ALGORITHM,
-        "revision": REVISION,
+        "revision": revision,
         "negotiated": negotiated,
         "unsupported": unsupported,
         "warnings": warnings,
@@ -149,6 +160,7 @@ def _require_supported_registration_identity(
     mode: Any,
     revision: Any,
     path: str,
+    expected_revision: str = REVISION,
 ) -> None:
     if algorithm != ALGORITHM:
         raise AcvpSchemaError(
@@ -156,7 +168,7 @@ def _require_supported_registration_identity(
             f"Unsupported algorithm: {algorithm}",
             child_path(path, "algorithm"),
         )
-    if revision != REVISION:
+    if revision != expected_revision:
         raise AcvpSchemaError(
             "unsupported_revision",
             f"Unsupported revision: {revision}",
@@ -200,6 +212,7 @@ def _negotiate_signature_mode(
     registration: Dict[str, Any],
     unsupported: List[Dict[str, Any]],
     warnings: List[Dict[str, Any]],
+    revision: str = REVISION,
 ) -> Optional[Dict[str, Any]]:
     mode = registration["mode"]
     signature_interfaces = _ordered_intersection(
@@ -294,6 +307,11 @@ def _negotiate_signature_mode(
         result["deterministic"] = _ordered_bool_intersection(
             registration.get("deterministic", [])
         )
+        if revision == REVISION_TR1:
+            result["keyFormats"] = _ordered_intersection(
+                registration.get("keyFormats", []),
+                ("expanded", "seed"),
+            )
     if "internal" in signature_interfaces:
         result["externalMu"] = external_mu
     if "external" in signature_interfaces:

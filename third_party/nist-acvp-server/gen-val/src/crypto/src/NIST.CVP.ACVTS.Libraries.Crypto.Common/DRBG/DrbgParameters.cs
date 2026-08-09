@@ -15,5 +15,8 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.Common.DRBG
         public int PersoStringLen { get; set; }
         public int AdditionalInputLen { get; set; }
         public int ReturnedBitsLen { get; set; }
+        
+        // Only applicable for ctrDRBG; Only applies to non-1.0 ctrDRBG testing revisions 
+        public int CounterFieldLength { get; set; }
     }
 }

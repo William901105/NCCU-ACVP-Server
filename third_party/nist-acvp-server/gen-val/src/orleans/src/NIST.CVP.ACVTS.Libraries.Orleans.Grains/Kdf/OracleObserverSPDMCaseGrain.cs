@@ -11,12 +11,12 @@ using NIST.CVP.ACVTS.Libraries.Orleans.Grains.Interfaces.SPDM;
 
 namespace NIST.CVP.ACVTS.Libraries.Orleans.Grains.Kdf;
 
-public class OracleObserverSPDMCaseGrain : ObservableOracleGrainBase<SPDMResult>, IOracleObserverSPDMCaseGrain
+public class OracleObserverSpdmCaseGrain : ObservableOracleGrainBase<SPDMResult>, IOracleObserverSPDMCaseGrain
 {
     private SPDMParameters _param;
     private readonly IRandom800_90 _rand;
 
-    public OracleObserverSPDMCaseGrain(LimitedConcurrencyLevelTaskScheduler nonOrleansScheduler, IRandom800_90 rand) : base(nonOrleansScheduler)
+    public OracleObserverSpdmCaseGrain(LimitedConcurrencyLevelTaskScheduler nonOrleansScheduler, IRandom800_90 rand) : base(nonOrleansScheduler)
     {
         _rand = rand;
     }
@@ -32,13 +32,15 @@ public class OracleObserverSPDMCaseGrain : ObservableOracleGrainBase<SPDMResult>
     protected override async Task DoWorkAsync()
     {
         var key = _rand.GetRandomBitString(_param.KeyLength);
-        var TH1 = _rand.GetRandomBitString(_param.THLength);
-        var TH2 = _rand.GetRandomBitString(_param.THLength);
+        
+        var hashFunction = ShaAttributes.GetHashFunctionFromEnum(_param.Mode);
+        var TH1 = _rand.GetRandomBitString(hashFunction.OutputLen);
+        var TH2 = _rand.GetRandomBitString(hashFunction.OutputLen);
 
-        var spdm = new Spdm(ShaAttributes.GetHashFunctionFromEnum(_param.Mode));
+        var spdm = new Spdm(hashFunction);
         var spdmreturn = spdm.KeySchedule(key, _param.PSK, _param.Version, TH1, TH2);
 
-        var result = new SPDMResult()
+        var result = new SPDMResult
         {
             RequestDirectionHandshake = spdmreturn.RequestDirectionHandshake,
             ResponseDirectionHandshake = spdmreturn.ResponseDirectionHandshake,

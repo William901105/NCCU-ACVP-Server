@@ -36,6 +36,14 @@ def test_mlkem_descriptor_and_supported_identities() -> None:
             "https://pages.nist.gov/ACVP/draft-celi-acvp-ml-kem.html",
             "https://csrc.nist.gov/pubs/fips/203/final",
         ],
+        "identities": [
+            {"algorithm": "ML-KEM", "mode": "keyGen", "revision": "FIPS203"},
+            {
+                "algorithm": "ML-KEM",
+                "mode": "encapDecap",
+                "revision": "FIPS203",
+            },
+        ],
         "functions": [
             "encapsulation",
             "decapsulation",
@@ -57,18 +65,19 @@ def test_mlkem_descriptor_and_supported_identities() -> None:
     assert not module.supports(AlgorithmIdentity("ML-KEM", "sigGen", "FIPS203"))
 
 
-def test_production_registry_contains_two_providers_and_five_identities() -> None:
+def test_production_registry_contains_four_providers_and_seven_identities() -> None:
     registry = build_algorithm_registry()
     descriptors = registry.list_descriptors()
 
-    assert len(registry) == 3
+    assert len(registry) == 4
     assert [item["providerId"] for item in descriptors] == [
         "nist-ml-dsa-fips204",
+        "nist-ml-dsa-fips204-tr1",
         "nist-ml-kem-fips203",
         "nist-ml-kem-fips203-tr1",
     ]
-    assert len(registry.identities()) == 6
-    assert len({item["providerId"] for item in descriptors}) == 3
+    assert len(registry.identities()) == 7
+    assert len({item["providerId"] for item in descriptors}) == 4
     mldsa = descriptors[0]
     assert mldsa["modes"] == ["keyGen", "sigGen", "sigVer"]
     assert mldsa["parameterSets"] == ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]

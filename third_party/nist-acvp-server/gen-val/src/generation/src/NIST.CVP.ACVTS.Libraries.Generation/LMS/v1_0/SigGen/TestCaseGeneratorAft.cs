@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using NIST.CVP.ACVTS.Libraries.Generation.Core;
 using NIST.CVP.ACVTS.Libraries.Generation.Core.Async;
+using NIST.CVP.ACVTS.Libraries.Math;
 using NIST.CVP.ACVTS.Libraries.Oracle.Abstractions;
 using NIST.CVP.ACVTS.Libraries.Oracle.Abstractions.ParameterTypes.Lms;
 using NIST.CVP.ACVTS.Libraries.Oracle.Abstractions.ResultTypes;
@@ -9,9 +11,10 @@ using NLog;
 
 namespace NIST.CVP.ACVTS.Libraries.Generation.LMS.v1_0.SigGen;
 
-public class TestCaseGeneratorAft : ITestCaseGeneratorAsync<TestGroup, TestCase>
+public class TestCaseGeneratorAft : ITestCaseGeneratorWithPrep<TestGroup, TestCase>
 {
     private readonly IOracle _oracle;
+    private ShuffleQueue<int> _q;
 
     public int NumberOfTestCasesToGenerate => 10;
 
@@ -20,11 +23,18 @@ public class TestCaseGeneratorAft : ITestCaseGeneratorAsync<TestGroup, TestCase>
         _oracle = oracle;
     }    
     
+    public GenerateResponse PrepareGenerator(TestGroup group, bool isSample)
+    {
+        _q = new ShuffleQueue<int>(Enumerable.Range(0, 32).ToList());
+        return new GenerateResponse();
+    }
+    
     public async Task<TestCaseGenerateResponse<TestGroup, TestCase>> GenerateAsync(TestGroup group, bool isSample, int caseNo = -1)
     {
         var param = new LmsSignatureParameters
         {
-            MessageLength = 1024
+            MessageLength = 1024,
+            Q = _q.Pop()
         };
 
         try

@@ -9,4 +9,4 @@ namespace NIST.CVP.ACVTS.Generation.GenValApp.Models
         public bool? TestPassed { get; }
         public bool Deferred { get; }
     }
-}
+}

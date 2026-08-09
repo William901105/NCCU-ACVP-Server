@@ -18,6 +18,7 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.ConditioningComponents.Sp800_90B.B
             {
                 nameof(TestGroup.TestGroupId),
                 nameof(TestGroup.TestType),
+                nameof(TestGroup.OutputLen),
                 nameof(TestGroup.KeyLength),
                 nameof(TestGroup.Tests)
             };

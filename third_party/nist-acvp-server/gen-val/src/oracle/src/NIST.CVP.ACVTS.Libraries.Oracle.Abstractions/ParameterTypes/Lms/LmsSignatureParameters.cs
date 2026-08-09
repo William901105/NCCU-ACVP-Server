@@ -10,5 +10,6 @@ public class LmsSignatureParameters
     public LmOtsMode LmOtsMode { get; set; }
     public ILmsKeyPair LmsKeyPair { get; set; }
     public int MessageLength { get; set; }
+    public int Q { get; set; }
     public LmsSignatureDisposition Disposition { get; set; }
 }

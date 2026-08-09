@@ -12,14 +12,15 @@ def map_mldsa_registration_to_nist(
     *,
     vs_id: int,
     is_sample: bool = True,
+    revision: str = REVISION,
 ) -> Dict[str, Any]:
-    normalized = validate_mldsa_registration(registration)
+    normalized = validate_mldsa_registration(registration, revision=revision)
     mode = normalized["mode"]
     mapped: Dict[str, Any] = {
         "vsId": vs_id,
         "algorithm": ALGORITHM,
         "mode": mode,
-        "revision": REVISION,
+        "revision": normalized["revision"],
         "isSample": bool(is_sample),
     }
 
@@ -32,6 +33,8 @@ def map_mldsa_registration_to_nist(
 
     if mode == "sigGen":
         mapped["deterministic"] = list(normalized["deterministic"])
+        if "keyFormats" in normalized:
+            mapped["keyFormats"] = list(normalized["keyFormats"])
 
     if "internal" in normalized["signatureInterfaces"]:
         mapped["externalMu"] = list(normalized["externalMu"])

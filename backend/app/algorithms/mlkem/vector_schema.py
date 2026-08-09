@@ -48,6 +48,12 @@ _TOP_LEVEL_FIELDS = {
 def validate_vector_set(payload: Any, *, revision: str = REVISION) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
     mode = _validate_top_level(obj, revision)
+    if revision == REVISION_TR1 and mode != "encapDecap":
+        raise AcvpSchemaError(
+            "unsupported_mode_revision_combination",
+            f"FIPS203-tr1 is only defined for ML-KEM encapDecap, not {mode}",
+            "$.mode",
+        )
     groups = require_field(obj, "testGroups", "$")
     _validate_groups(groups, mode, revision == REVISION_TR1)
     return obj

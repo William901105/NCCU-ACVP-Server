@@ -17,25 +17,33 @@ from .constants import (
     ALGORITHM,
     DOMAIN_CONSTRAINTS,
     HASH_ALGORITHMS,
+    KEY_FORMATS,
     MODES,
     PARAMETER_SETS,
     PRE_HASH_VALUES,
     REVISION,
+    REVISION_TR1,
     SIGNATURE_INTERFACES,
 )
 from ...acvp_core.schema_error import AcvpSchemaError
 from .normalize import normalize_acvp_container
 
 
-def validate_registration(payload: Any) -> Dict[str, Any]:
+def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
-    _validate_common_registration(obj, "$")
+    _validate_common_registration(obj, "$", revision)
     mode = require_enum(require_field(obj, "mode", "$"), MODES, "$.mode", code="invalid_mode")
+    if revision == REVISION_TR1 and mode != "sigGen":
+        raise AcvpSchemaError(
+            "unsupported_mode_revision_combination",
+            f"FIPS204-tr1 is only defined for ML-DSA sigGen, not {mode}",
+            "$.mode",
+        )
 
     if mode == "keyGen":
         validate_keygen_registration(obj, "$")
     elif mode == "sigGen":
-        validate_siggen_registration(obj, "$")
+        validate_siggen_registration(obj, "$", revision=revision)
     elif mode == "sigVer":
         validate_sigver_registration(obj, "$")
     else:
@@ -54,8 +62,23 @@ def validate_keygen_registration(obj: Dict[str, Any], path: str = "$") -> Dict[s
     return obj
 
 
-def validate_siggen_registration(obj: Dict[str, Any], path: str = "$") -> Dict[str, Any]:
+def validate_siggen_registration(
+    obj: Dict[str, Any], path: str = "$", *, revision: str = REVISION
+) -> Dict[str, Any]:
     require_bool_array(require_field(obj, "deterministic", path), child_path(path, "deterministic"))
+    if revision == REVISION_TR1:
+        obj["keyFormats"] = require_enum_array(
+            require_field(obj, "keyFormats", path),
+            KEY_FORMATS,
+            child_path(path, "keyFormats"),
+            code="invalid_key_format",
+        )
+    elif "keyFormats" in obj:
+        raise AcvpSchemaError(
+            "invalid_conditional_field",
+            "keyFormats is only valid for FIPS204-tr1 sigGen",
+            child_path(path, "keyFormats"),
+        )
     _validate_signature_interface_registration(obj, path)
     _validate_capabilities(obj, path, require_hash_alg=_uses_pre_hash(obj))
     return obj
@@ -67,14 +90,18 @@ def validate_sigver_registration(obj: Dict[str, Any], path: str = "$") -> Dict[s
     return obj
 
 
-def _validate_common_registration(obj: Dict[str, Any], path: str) -> None:
+def _validate_common_registration(obj: Dict[str, Any], path: str, revision: str) -> None:
     algorithm = require_string(require_field(obj, "algorithm", path), child_path(path, "algorithm"))
     if algorithm != ALGORITHM:
         raise AcvpSchemaError("unsupported_algorithm", f"Unsupported algorithm: {algorithm}", child_path(path, "algorithm"))
 
-    revision = require_string(require_field(obj, "revision", path), child_path(path, "revision"))
-    if revision != REVISION:
-        raise AcvpSchemaError("unsupported_revision", f"Unsupported revision: {revision}", child_path(path, "revision"))
+    actual_revision = require_string(require_field(obj, "revision", path), child_path(path, "revision"))
+    if actual_revision != revision:
+        raise AcvpSchemaError(
+            "unsupported_revision",
+            f"Unsupported revision: {actual_revision}",
+            child_path(path, "revision"),
+        )
 
     validate_prereq_vals(obj, path)
 

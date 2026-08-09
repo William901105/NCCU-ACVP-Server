@@ -11,7 +11,6 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.SPDM
     {
         public static int MIN_KEY_LENGTH = 112;
         public static int MAX_KEY_LENGTH = 4096;
-        public static int[] VALID_TH_LENGTHS = [256, 384, 512];
         public static HashFunctions[] VALID_HASH_FUNCTIONS = [HashFunctions.Sha2_d256, HashFunctions.Sha2_d384, HashFunctions.Sha2_d512, HashFunctions.Sha3_d256, HashFunctions.Sha3_d384, HashFunctions.Sha3_d512];
         public static SPDMVersions[] VALID_VERSIONS = [SPDMVersions.SPDM11, SPDMVersions.SPDM12, SPDMVersions.SPDM13];
         
@@ -22,7 +21,6 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.SPDM
             ValidateSPDMVersion(parameters, errors);
             ValidateKeyLength(parameters, errors);
             ValidateUsesPSK(parameters, errors);
-            ValidateTHLength(parameters, errors);
 
             return new ParameterValidateResponse(errors);
         }
@@ -82,26 +80,6 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.SPDM
         private void ValidateUsesPSK(Parameters parameters, List<string> errors)
         {
             errors.AddIfNotNullOrEmpty(ValidateBoolArray(parameters.UsesPSK, nameof(parameters.UsesPSK)));
-        }
-        
-        private void ValidateTHLength(Parameters parameters, List<string> errors)
-        {
-            if (parameters.THLen == null)
-            {
-                errors.Add("THLen was null and is required.");
-                return;
-            }
-
-            var fullDomain = parameters.THLen.GetDomainMinMax();
-            var rangeCheck = ValidateRange(
-                new long[] { fullDomain.Minimum, fullDomain.Maximum },
-                VALID_TH_LENGTHS.First(), VALID_TH_LENGTHS.Last(),
-                "THLen Range"
-            );
-            errors.AddIfNotNullOrEmpty(rangeCheck);
-            
-            var multipleCheck = ValidateMultipleOf(parameters.THLen, 128, nameof(parameters.THLen));
-            errors.AddIfNotNullOrEmpty(multipleCheck);
         }
     }
 }

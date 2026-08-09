@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using NIST.CVP.ACVTS.Libraries.Common.ExtensionMethods;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.DRBG;
+using NIST.CVP.ACVTS.Libraries.Crypto.Common.DRBG.Enums;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.DRBG.Helpers;
 using NIST.CVP.ACVTS.Libraries.Generation.Core;
 using NIST.CVP.ACVTS.Libraries.Math;
@@ -76,7 +77,12 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.DRBG.v1_0
 
                             ReturnedBitsLen = capability.ReturnedBitsLen
                         };
-
+                        
+                        // This keeps the ctrDRBG v1_0 testing working after the changes to the ctrDRBG crypto to support 
+                        // the ctrDRBG SP800-90Ar1 testing revision.
+                        if (attributes.Mechanism == DrbgMechanism.Counter)
+                            dp.CounterFieldLength = DrbgAttributesHelper.GetCounterDrbgAttributes(attributes.Mode).BlockSize;
+                        
                         var tg = new TestGroup
                         {
                             DrbgParameters = dp,
@@ -103,7 +109,7 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.DRBG.v1_0
                         .Take(2)
                 );
 
-            return new ShuffleQueue<int>(testValues.Shuffle());
+            return new ShuffleQueue<int>(testValues);
         }
     }
 }

@@ -1,7 +1,6 @@
-using System.Collections.Generic;
 using NIST.CVP.ACVTS.Libraries.Common;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.PQC.Dilithium;
-using NIST.CVP.ACVTS.Libraries.Generation.ML_DSA.FIPS204.KeyGen;
+using NIST.CVP.ACVTS.Libraries.Generation.ML_DSA.FIPS204.v1_0.KeyGen;
 using NIST.CVP.ACVTS.Libraries.Generation.Tests;
 using NIST.CVP.ACVTS.Libraries.Math;
 using NIST.CVP.ACVTS.Tests.Core.TestCategoryAttributes;

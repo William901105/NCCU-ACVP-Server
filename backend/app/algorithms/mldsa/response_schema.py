@@ -20,6 +20,7 @@ from .constants import (
     MODES,
     PUBLIC_KEY_BYTES,
     REVISION,
+    REVISION_TR1,
     SECRET_KEY_BYTES,
     SIGNATURE_BYTES,
 )
@@ -39,15 +40,28 @@ _RESPONSE_TOP_LEVEL_FIELDS = {
 }
 
 
-def validate_response(payload: Any, expected_mode: Optional[str] = None) -> Dict[str, Any]:
+def validate_response(
+    payload: Any,
+    expected_mode: Optional[str] = None,
+    *,
+    revision: str = REVISION,
+) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
-    mode = _validate_common_response(obj, "$", expected_mode)
+    mode = _validate_common_response(obj, "$", expected_mode, revision)
+    if revision == REVISION_TR1 and mode != "sigGen":
+        raise AcvpSchemaError(
+            "unsupported_mode_revision_combination",
+            f"FIPS204-tr1 is only defined for ML-DSA sigGen, not {mode}",
+            "$.mode",
+        )
     test_groups = require_field(obj, "testGroups", "$")
     _validate_response_groups(test_groups, "$.testGroups", mode)
     return obj
 
 
-def _validate_common_response(obj: Dict[str, Any], path: str, expected_mode: Optional[str]) -> str:
+def _validate_common_response(
+    obj: Dict[str, Any], path: str, expected_mode: Optional[str], revision: str
+) -> str:
     require_allowed_fields(obj, _RESPONSE_TOP_LEVEL_FIELDS, path)
     require_int(require_field(obj, "vsId", path), child_path(path, "vsId"))
     if "extensions" in obj:
@@ -63,19 +77,31 @@ def _validate_common_response(obj: Dict[str, Any], path: str, expected_mode: Opt
             )
 
     if "revision" in obj:
-        revision = require_string(obj["revision"], child_path(path, "revision"))
-        if revision != REVISION:
+        actual_revision = require_string(obj["revision"], child_path(path, "revision"))
+        if actual_revision != revision:
             raise AcvpSchemaError(
                 "unsupported_revision",
-                f"Unsupported revision: {revision}",
+                f"Unsupported revision: {actual_revision}",
                 child_path(path, "revision"),
             )
 
-    if expected_mode is not None:
-        return require_enum(expected_mode, MODES, "$.expected_mode", code="invalid_mode")
-
+    supplied_mode = None
     if "mode" in obj:
-        return require_enum(obj["mode"], MODES, child_path(path, "mode"), code="invalid_mode")
+        supplied_mode = require_enum(
+            obj["mode"], MODES, child_path(path, "mode"), code="invalid_mode"
+        )
+    if expected_mode is not None:
+        mode = require_enum(expected_mode, MODES, "$.expected_mode", code="invalid_mode")
+        if supplied_mode is not None and supplied_mode != mode:
+            raise AcvpSchemaError(
+                "invalid_mode",
+                f"Response mode {supplied_mode!r} does not match expected mode {mode!r}",
+                child_path(path, "mode"),
+            )
+        return mode
+
+    if supplied_mode is not None:
+        return supplied_mode
 
     return _infer_response_mode(obj)
 

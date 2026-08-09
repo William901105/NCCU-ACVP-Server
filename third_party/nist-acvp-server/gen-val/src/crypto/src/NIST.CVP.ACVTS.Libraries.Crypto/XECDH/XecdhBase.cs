@@ -139,4 +139,4 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.XECDH
             return _operator.Multiply(x_2, z_2.ModularInverse(FieldSizeP));
         }
     }
-}
+}

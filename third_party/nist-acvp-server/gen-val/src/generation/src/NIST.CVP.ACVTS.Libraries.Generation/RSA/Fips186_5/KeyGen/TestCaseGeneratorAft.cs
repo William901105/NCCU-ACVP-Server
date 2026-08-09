@@ -72,6 +72,11 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.RSA.Fips186_5.KeyGen
                         testCase.XQ2 = new BitString(result.AuxValues.XQ2, testCase.Bitlens[3], false);
                     }
 
+                    if (isSample && !group.InfoGeneratedByServer)
+                    {
+                        testCase.Deferred = true;
+                    }
+
                     return new TestCaseGenerateResponse<TestGroup, TestCase>(testCase);
                 }
                 catch (Exception ex)

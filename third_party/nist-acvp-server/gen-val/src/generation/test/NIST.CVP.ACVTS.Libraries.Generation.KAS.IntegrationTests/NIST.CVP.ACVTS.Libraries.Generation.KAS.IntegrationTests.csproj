@@ -30,4 +30,4 @@
     <ProjectReference Include="..\NIST.CVP.ACVTS.Libraries.Generation.Tests\NIST.CVP.ACVTS.Libraries.Generation.Tests.csproj" />
   </ItemGroup>
 
-</Project>
+</Project>

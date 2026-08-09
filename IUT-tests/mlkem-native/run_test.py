@@ -17,6 +17,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 
 SUPPORTED_MODES = {"keyGen", "encapDecap"}
+SUPPORTED_IDENTITIES = {
+    ("ML-KEM", "keyGen", "FIPS203"),
+    ("ML-KEM", "encapDecap", "FIPS203"),
+    ("ML-KEM", "encapDecap", "FIPS203-tr1"),
+}
 ENCAP_DECAP_FUNCTIONS = {
     "encapsulation",
     "decapsulation",
@@ -74,9 +79,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         response_dir = Path(args.response_dir)
         prompt = _read_json(prompt_path)
         vector_set = _acvp_body(prompt)
+        algorithm = _required_string(vector_set, "algorithm", "$.algorithm")
         mode = _required_string(vector_set, "mode", "$.mode")
-        if mode not in SUPPORTED_MODES:
-            raise IutRunnerError(f"unsupported ML-KEM mode: {mode!r}")
+        revision = _required_string(vector_set, "revision", "$.revision")
+        _require_supported_identity(algorithm, mode, revision)
         if args.expect_mode and mode != args.expect_mode:
             raise IutRunnerError(
                 f"prompt mode {mode!r} does not match expected mode {args.expect_mode!r}"
@@ -245,11 +251,12 @@ def _purge_modules(prefix: str) -> None:
 
 def _generate_response(vector_set: Dict[str, Any], crypto: CryptoBackend) -> Dict[str, Any]:
     mode = _required_string(vector_set, "mode", "$.mode")
+    revision = _required_string(vector_set, "revision", "$.revision")
     body: Dict[str, Any] = {
         "vsId": vector_set.get("vsId"),
         "algorithm": vector_set.get("algorithm", "ML-KEM"),
         "mode": mode,
-        "revision": vector_set.get("revision", "FIPS203"),
+        "revision": revision,
         "testGroups": [],
     }
     groups = vector_set.get("testGroups")
@@ -329,7 +336,7 @@ def _generate_test_response(
             return {"tcId": tc_id, "testPassed": _encapsulation_key_valid(ml_kem, ek)}
 
         if function == "decapsulationKeyCheck":
-            # NIST GenVal v1.1.0.43 emits the decapsulationKeyCheck group with
+            # The pinned NIST GenVal commit emits the decapsulationKeyCheck group with
             # keyFormat "none", so the prompt carries NO decapsulation key (only
             # tcId) -- see docs/mlkem-fips203-tr1-spec.md 3.3. This is a NIST-side
             # defect (the keyCheck group is generated without a KeyFormat, unlike
@@ -344,11 +351,22 @@ def _generate_test_response(
                 z = _hex_bytes(_required_lookup(test, group, "z"), "z", expected_len=32)
                 _ek, dk = ml_kem._keygen_internal(d, z)
             else:
-                # keyFormat "none": no key material available (NIST v1.1.0.43 bug).
-                return {"tcId": tc_id}
+                raise IutRunnerError(
+                    "decapsulationKeyCheck prompt contains no dk or d+z; "
+                    "the pinned NIST generator cannot produce a computable response"
+                )
             return {"tcId": tc_id, "testPassed": _decapsulation_key_valid(ml_kem, dk)}
 
     raise IutRunnerError(f"unsupported ML-KEM mode: {mode!r}")
+
+
+def _require_supported_identity(algorithm: str, mode: str, revision: str) -> None:
+    identity = (algorithm, mode, revision)
+    if identity not in SUPPORTED_IDENTITIES:
+        raise IutRunnerError(
+            "unsupported ML-KEM algorithm/mode/revision identity: "
+            f"{algorithm}/{mode}/{revision}"
+        )
 
 
 def _encapsulation_key_valid(ml_kem: Any, ek: bytes) -> bool:

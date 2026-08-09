@@ -149,8 +149,15 @@ def test_real_nist_tr1_sample_prompt_validates() -> None:
         "encapsulation", "decapsulation",
         "encapsulationKeyCheck", "decapsulationKeyCheck",
     }
-    key_formats = {g["keyFormat"] for g in validated["testGroups"]}
-    assert key_formats == {"none", "seed", "expanded"}
+    key_formats = {g.get("keyFormat") for g in validated["testGroups"]}
+    assert key_formats == {None, "seed", "expanded"}
+    key_check_groups = [
+        group for group in validated["testGroups"]
+        if group["function"] == "decapsulationKeyCheck"
+    ]
+    assert key_check_groups
+    assert all(group["keyFormat"] == "expanded" for group in key_check_groups)
+    assert all("dk" in test for group in key_check_groups for test in group["tests"])
 
 
 def test_base_prompt_rejects_key_format_field() -> None:
@@ -178,13 +185,15 @@ def _tr1_response(groups):
     }
 
 
-def test_tr1_response_allows_empty_decap_key_check_shape() -> None:
-    # keyFormat "none" decapsulationKeyCheck -> IUT can only answer {tcId}.
+def test_tr1_response_rejects_empty_decap_key_check_shape() -> None:
+    # A key-check response must always carry testPassed. Never turn an
+    # uncomputable upstream prompt into an empty successful response.
     resp = _tr1_response([{"tgId": 10, "tests": [{"tcId": 136}, {"tcId": 137}]}])
-    validated = MlkemTr1AlgorithmModule().validate_response(
-        resp, expected_mode="encapDecap"
-    )
-    assert validated["testGroups"][0]["tests"][0] == {"tcId": 136}
+    with pytest.raises(AcvpSchemaError) as exc:
+        MlkemTr1AlgorithmModule().validate_response(
+            resp, expected_mode="encapDecap"
+        )
+    assert exc.value.code == "invalid_response_shape"
 
 
 def test_base_response_rejects_empty_shape() -> None:
@@ -225,11 +234,11 @@ def test_tr1_harness_output_roundtrips_through_response_schema(tmp_path) -> None
     validated = MlkemTr1AlgorithmModule().validate_response(
         response, expected_mode="encapDecap"
     )
-    empty_groups = [
+    key_check_groups = [
         g for g in validated["testGroups"]
-        if all(set(t) == {"tcId"} for t in g["tests"])
+        if all(set(t) == {"tcId", "testPassed"} for t in g["tests"])
     ]
-    assert empty_groups, "expected decapsulationKeyCheck 'none' groups to round-trip"
+    assert key_check_groups, "expected decapsulation key-check groups to round-trip"
 
 
 # --- #8: keyFormats is required only when decapsulation is registered. ---
@@ -294,5 +303,5 @@ def test_keygen_key_formats_gives_conditional_error() -> None:
     }
     with pytest.raises(AcvpSchemaError) as exc:
         MlkemTr1AlgorithmModule().validate_registration(reg)
-    assert exc.value.code == "invalid_conditional_field"
-    assert exc.value.path == "$.keyFormats"
+    assert exc.value.code == "unsupported_mode_revision_combination"
+    assert exc.value.path == "$.mode"

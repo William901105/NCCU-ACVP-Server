@@ -90,9 +90,9 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.RSA.Fips186_5.KeyGen
             }
             else
             {
-                if (suppliedResult.Key.PubKey.E == 0 || suppliedResult.Key.PubKey.N == 0)
+                if (suppliedResult.Key.PubKey.N == 0)
                 {
-                    errors.Add($"A {nameof(suppliedResult.Key.PubKey)} value is 0");
+                    errors.Add($"{nameof(suppliedResult.Key.PubKey.N)} not present in {nameof(TestCase)}");
                 }
             }
 

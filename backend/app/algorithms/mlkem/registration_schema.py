@@ -67,6 +67,12 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
         "$.mode",
         code="invalid_mode",
     )
+    if revision == REVISION_TR1 and mode != "encapDecap":
+        raise AcvpSchemaError(
+            "unsupported_mode_revision_combination",
+            f"FIPS203-tr1 is only defined for ML-KEM encapDecap, not {mode}",
+            "$.mode",
+        )
     obj["parameterSets"] = require_enum_array(
         require_field(obj, "parameterSets", "$"),
         PARAMETER_SETS,

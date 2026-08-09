@@ -21,6 +21,7 @@ import { buildRegistrationAlgorithms } from "./registration";
 import { FIPS_REGISTRY, getFipsConfig } from "./registry";
 import type {
   AcvpParameterSet,
+  AcvpRevision,
   AcvpRequestResource,
   AcvpSessionDetail,
   AcvpSessionRegistration,
@@ -53,6 +54,9 @@ export default function App() {
   const config = useMemo(() => getFipsConfig(activeFipsId), [activeFipsId]);
   const [isSample, setIsSample] = useState(false);
   const [selectedModes, setSelectedModes] = useState<CapabilityMode[]>(["keyGen"]);
+  const [selectedRevisions, setSelectedRevisions] = useState<
+    Partial<Record<CapabilityMode, AcvpRevision>>
+  >({ keyGen: "FIPS204" });
   const [selectedParameterSets, setSelectedParameterSets] = useState<AcvpParameterSet[]>([
     "ML-DSA-44"
   ]);
@@ -118,6 +122,7 @@ export default function App() {
     const nextConfig = getFipsConfig(id);
     setActiveFipsId(id);
     setSelectedModes([...nextConfig.defaultModes]);
+    setSelectedRevisions(defaultRevisions(nextConfig));
     setSelectedParameterSets([...nextConfig.defaultParameterSets]);
     setSelectedFunctions([...(nextConfig.defaultFunctions ?? [])]);
     setLabel(`${nextConfig.algorithm} registration`);
@@ -135,7 +140,8 @@ export default function App() {
           config,
           modes: selectedModes,
           parameterSets: selectedParameterSets,
-          functions: selectedFunctions
+          functions: selectedFunctions,
+          revisions: selectedRevisions
         }),
         label,
         isSample,
@@ -373,7 +379,14 @@ export default function App() {
         <section className="panel stack registration-panel">
           <div className="panel-header">
             <h2>{config.label} Registration</h2>
-            <StatusChip label={`${config.algorithm} / ${config.revision}`} tone="info" />
+            <StatusChip
+              label={`${config.algorithm} / ${selectedRevisionLabel(
+                config,
+                selectedModes,
+                selectedRevisions
+              )}`}
+              tone="info"
+            />
           </div>
           <div className="control-group">
             <span>Algorithm</span>
@@ -395,10 +408,14 @@ export default function App() {
           <CapabilityControls
             config={config}
             selectedModes={selectedModes}
+            selectedRevisions={selectedRevisions}
             selectedParameterSets={selectedParameterSets}
             selectedFunctions={selectedFunctions}
             disabled={isBusy}
             onToggleMode={(mode) => setSelectedModes(toggleValue(selectedModes, mode))}
+            onSelectRevision={(mode, revision) =>
+              setSelectedRevisions({ ...selectedRevisions, [mode]: revision })
+            }
             onToggleParameterSet={(value) =>
               setSelectedParameterSets(toggleValue(selectedParameterSets, value))
             }
@@ -664,10 +681,12 @@ export default function App() {
 interface CapabilityControlsProps {
   config: FipsVersionConfig;
   selectedModes: CapabilityMode[];
+  selectedRevisions: Partial<Record<CapabilityMode, AcvpRevision>>;
   selectedParameterSets: AcvpParameterSet[];
   selectedFunctions: MlKemFunction[];
   disabled: boolean;
   onToggleMode: (mode: CapabilityMode) => void;
+  onSelectRevision: (mode: CapabilityMode, revision: AcvpRevision) => void;
   onToggleParameterSet: (value: AcvpParameterSet) => void;
   onToggleFunction: (value: MlKemFunction) => void;
 }
@@ -675,10 +694,12 @@ interface CapabilityControlsProps {
 function CapabilityControls({
   config,
   selectedModes,
+  selectedRevisions,
   selectedParameterSets,
   selectedFunctions,
   disabled,
   onToggleMode,
+  onSelectRevision,
   onToggleParameterSet,
   onToggleFunction
 }: CapabilityControlsProps) {
@@ -702,6 +723,26 @@ function CapabilityControls({
           ))}
         </div>
       </div>
+      {selectedModes.map((mode) => {
+        const modeConfig = config.modes.find((item) => item.id === mode);
+        if (!modeConfig) return null;
+        return (
+          <label className="field" key={`${mode}-revision`}>
+            <span>{mode} revision</span>
+            <select
+              value={selectedRevisions[mode] ?? modeConfig.defaultRevision}
+              onChange={(event) =>
+                onSelectRevision(mode, event.target.value as AcvpRevision)
+              }
+              disabled={disabled || modeConfig.revisions.length === 1}
+            >
+              {modeConfig.revisions.map((revision) => (
+                <option key={revision} value={revision}>{revision}</option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
       <div className="control-group">
         <span>Parameter sets</span>
         <div className="segmented">
@@ -739,6 +780,26 @@ function CapabilityControls({
       ) : null}
     </>
   );
+}
+
+function defaultRevisions(
+  config: FipsVersionConfig
+): Partial<Record<CapabilityMode, AcvpRevision>> {
+  return Object.fromEntries(
+    config.modes.map((mode) => [mode.id, mode.defaultRevision])
+  ) as Partial<Record<CapabilityMode, AcvpRevision>>;
+}
+
+function selectedRevisionLabel(
+  config: FipsVersionConfig,
+  modes: CapabilityMode[],
+  revisions: Partial<Record<CapabilityMode, AcvpRevision>>
+): string {
+  const values = modes.map((mode) => {
+    const modeConfig = config.modes.find((item) => item.id === mode);
+    return revisions[mode] ?? modeConfig?.defaultRevision ?? config.revision;
+  });
+  return [...new Set(values)].join(", ") || config.revision;
 }
 
 function MetadataGrid({ items }: { items: [string, string][] }) {

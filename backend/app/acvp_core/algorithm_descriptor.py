@@ -23,6 +23,7 @@ class AlgorithmDescriptor:
     execution_backend: str
     nist_references: Tuple[str, ...]
     capability_metadata: Any = ()
+    supported_identities: Tuple[AlgorithmIdentity, ...] = ()
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -43,8 +44,19 @@ class AlgorithmDescriptor:
         object.__setattr__(self, "parameter_sets", _non_empty_strings(self.parameter_sets, "parameter_sets"))
         object.__setattr__(self, "nist_references", tuple(self.nist_references))
         object.__setattr__(self, "capability_metadata", _freeze_mapping(self.capability_metadata))
+        identities = tuple(self.supported_identities)
+        if identities:
+            if any(not isinstance(identity, AlgorithmIdentity) for identity in identities):
+                raise TypeError("supported_identities must contain AlgorithmIdentity values")
+            if any(identity.algorithm != self.algorithm for identity in identities):
+                raise ValueError("supported_identities must use descriptor.algorithm")
+            if len(set(identities)) != len(identities):
+                raise ValueError("supported_identities must not contain duplicates")
+        object.__setattr__(self, "supported_identities", identities)
 
     def identities(self) -> Tuple[AlgorithmIdentity, ...]:
+        if self.supported_identities:
+            return self.supported_identities
         return tuple(
             AlgorithmIdentity(self.algorithm, mode, self.revision)
             for mode in self.modes
@@ -64,6 +76,14 @@ class AlgorithmDescriptor:
             "workflowPolicy": "strict",
             "executionBackend": self.execution_backend,
             "nistReferences": list(self.nist_references),
+            "identities": [
+                {
+                    "algorithm": identity.algorithm,
+                    "mode": identity.mode,
+                    "revision": identity.revision,
+                }
+                for identity in self.identities()
+            ],
         }
         for key, value in self.capability_metadata:
             result[key] = _thaw(value)

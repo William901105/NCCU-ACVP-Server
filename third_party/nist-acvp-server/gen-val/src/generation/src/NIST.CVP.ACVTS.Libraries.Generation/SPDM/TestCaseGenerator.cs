@@ -17,7 +17,6 @@ public class TestCaseGenerator : ITestCaseGeneratorWithPrep<TestGroup, TestCase>
     public int NumberOfTestCasesToGenerate => 20;
 
     ShuffleQueue<int> _keyLengths;
-    ShuffleQueue<int> _thLengths;
 
     public TestCaseGenerator(IOracle oracle)
     {
@@ -27,15 +26,10 @@ public class TestCaseGenerator : ITestCaseGeneratorWithPrep<TestGroup, TestCase>
     public GenerateResponse PrepareGenerator(TestGroup group, bool isSample)
     {
         List<int> klengths = [];
-        List<int> thlengths = [];
 
         klengths.AddRange(group.KeyLength.GetDomainMinMaxAsEnumerable());
         klengths.AddRange(group.KeyLength.GetRandomValues(x => x % 8 == 0, NumberOfTestCasesToGenerate - 2));
         _keyLengths = new ShuffleQueue<int>(klengths);
-
-        thlengths.AddRange(group.THLength.GetDomainMinMaxAsEnumerable());
-        thlengths.AddRange(group.THLength.GetRandomValues(x => x % 8 == 0, NumberOfTestCasesToGenerate - 2));
-        _thLengths = new ShuffleQueue<int>(thlengths);
 
         return new GenerateResponse();
     }
@@ -45,7 +39,6 @@ public class TestCaseGenerator : ITestCaseGeneratorWithPrep<TestGroup, TestCase>
         var param = new SPDMParameters
         {
             KeyLength = _keyLengths.Pop(),
-            THLength = _thLengths.Pop(),
             Mode = group.HashFunction,
             Version = group.Version,
             PSK = group.UsesPSK,

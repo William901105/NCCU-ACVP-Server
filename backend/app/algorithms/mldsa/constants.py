@@ -6,6 +6,9 @@ from typing import Dict, Set, Tuple
 # Aligned with NIST ACVP ML-DSA draft-celi-acvp-ml-dsa-01.
 ALGORITHM = "ML-DSA"
 REVISION = "FIPS204"
+REVISION_TR1 = "FIPS204-tr1"
+REVISIONS = {REVISION, REVISION_TR1}
+KEY_FORMATS: Set[str] = {"expanded", "seed"}
 
 MODES: Set[str] = {"keyGen", "sigGen", "sigVer"}
 PARAMETER_SETS: Set[str] = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"}

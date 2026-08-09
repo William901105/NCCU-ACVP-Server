@@ -21,7 +21,6 @@ public class TestGroupGenerator : ITestGroupGeneratorAsync<Parameters, TestGroup
                     {
                         TestType = "AFT",
                         KeyLength = parameters.KeyLen,
-                        THLength = parameters.THLen,
                         HashFunction = mode,
                         Version = version,
                         UsesPSK = psk,

@@ -39,4 +39,4 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.Common.Asymmetric.XECDH
 
         XecdhKeyPairValidateResult ValidateKeyPair(XecdhKeyPair keyPair);
     }
-}
+}

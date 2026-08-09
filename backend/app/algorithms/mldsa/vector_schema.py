@@ -19,12 +19,14 @@ from .constants import (
     ALGORITHM,
     CONTEXT_MAX_BYTES,
     HASH_ALGORITHMS,
+    KEY_FORMATS,
     MODES,
     MU_BYTES,
     PARAMETER_SETS,
     PRE_HASH_VALUES,
     PUBLIC_KEY_BYTES,
     REVISION,
+    REVISION_TR1,
     RND_BYTES,
     SECRET_KEY_BYTES,
     SEED_BYTES,
@@ -36,15 +38,21 @@ from ...acvp_core.schema_error import AcvpSchemaError
 from .normalize import normalize_acvp_container
 
 
-def validate_vector_set(payload: Any) -> Dict[str, Any]:
+def validate_vector_set(payload: Any, *, revision: str = REVISION) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
-    mode = _validate_common_vector_set(obj, "$")
+    mode = _validate_common_vector_set(obj, "$", revision)
+    if revision == REVISION_TR1 and mode != "sigGen":
+        raise AcvpSchemaError(
+            "unsupported_mode_revision_combination",
+            f"FIPS204-tr1 is only defined for ML-DSA sigGen, not {mode}",
+            "$.mode",
+        )
     test_groups = require_field(obj, "testGroups", "$")
-    _validate_groups(test_groups, "$.testGroups", mode)
+    _validate_groups(test_groups, "$.testGroups", mode, revision)
     return obj
 
 
-def _validate_common_vector_set(obj: Dict[str, Any], path: str) -> str:
+def _validate_common_vector_set(obj: Dict[str, Any], path: str, revision: str) -> str:
     require_allowed_fields(
         obj,
         {"acvVersion", "vsId", "algorithm", "mode", "revision", "isSample", "testGroups"},
@@ -57,16 +65,16 @@ def _validate_common_vector_set(obj: Dict[str, Any], path: str) -> str:
 
     mode = require_enum(require_field(obj, "mode", path), MODES, child_path(path, "mode"), code="invalid_mode")
 
-    revision = require_string(require_field(obj, "revision", path), child_path(path, "revision"))
-    if revision != REVISION:
-        raise AcvpSchemaError("unsupported_revision", f"Unsupported revision: {revision}", child_path(path, "revision"))
+    actual_revision = require_string(require_field(obj, "revision", path), child_path(path, "revision"))
+    if actual_revision != revision:
+        raise AcvpSchemaError("unsupported_revision", f"Unsupported revision: {actual_revision}", child_path(path, "revision"))
 
     if "isSample" in obj:
         require_bool(obj["isSample"], child_path(path, "isSample"))
     return mode
 
 
-def _validate_groups(value: Any, path: str, mode: str) -> None:
+def _validate_groups(value: Any, path: str, mode: str, revision: str) -> None:
     if not isinstance(value, list):
         raise AcvpSchemaError("invalid_type", "Expected array", path)
     if not value:
@@ -81,7 +89,7 @@ def _validate_groups(value: Any, path: str, mode: str) -> None:
         if mode == "keyGen":
             _validate_keygen_group(group, group_path)
         elif mode == "sigGen":
-            _validate_siggen_group(group, group_path)
+            _validate_siggen_group(group, group_path, revision=revision)
         elif mode == "sigVer":
             _validate_sigver_group(group, group_path)
         all_tests.extend(require_field(group, "tests", group_path))
@@ -122,8 +130,24 @@ def _validate_keygen_group(group: Dict[str, Any], path: str) -> None:
         )
 
 
-def _validate_siggen_group(group: Dict[str, Any], path: str) -> None:
+def _validate_siggen_group(
+    group: Dict[str, Any], path: str, *, revision: str = REVISION
+) -> None:
     parameter_set, tests = _validate_common_group(group, path)
+    key_format = "expanded"
+    if revision == REVISION_TR1:
+        key_format = require_enum(
+            require_field(group, "keyFormat", path),
+            KEY_FORMATS,
+            child_path(path, "keyFormat"),
+            code="invalid_key_format",
+        )
+    elif "keyFormat" in group:
+        raise AcvpSchemaError(
+            "invalid_conditional_field",
+            "keyFormat is only valid for FIPS204-tr1 sigGen",
+            child_path(path, "keyFormat"),
+        )
     deterministic = require_bool(require_field(group, "deterministic", path), child_path(path, "deterministic"))
     signature_interface = require_enum(
         require_field(group, "signatureInterface", path),
@@ -143,6 +167,7 @@ def _validate_siggen_group(group: Dict[str, Any], path: str) -> None:
                 "deterministic",
                 "signatureInterface",
                 "externalMu",
+                *({"keyFormat"} if revision == REVISION_TR1 else set()),
                 "tests",
             },
             path,
@@ -159,6 +184,7 @@ def _validate_siggen_group(group: Dict[str, Any], path: str) -> None:
                 "deterministic",
                 "signatureInterface",
                 "preHash",
+                *({"keyFormat"} if revision == REVISION_TR1 else set()),
                 "tests",
             },
             path,
@@ -170,20 +196,26 @@ def _validate_siggen_group(group: Dict[str, Any], path: str) -> None:
         test_path = child_path(child_path(path, "tests"), index)
         test = require_object(item, test_path)
         if signature_interface == "internal":
-            allowed = {"tcId", "sk", "mu" if external_mu else "message"}
+            key_field = "seed" if key_format == "seed" else "sk"
+            allowed = {"tcId", key_field, "mu" if external_mu else "message"}
             if not deterministic:
                 allowed.add("rnd")
             require_allowed_fields(test, allowed, test_path)
-            _validate_common_siggen_test(test, test_path, deterministic, parameter_set)
+            _validate_common_siggen_test(
+                test, test_path, deterministic, parameter_set, key_format
+            )
             _validate_internal_message_or_mu(test, test_path, bool(external_mu))
         else:
-            allowed = {"tcId", "sk", "message", "context"}
+            key_field = "seed" if key_format == "seed" else "sk"
+            allowed = {"tcId", key_field, "message", "context"}
             if pre_hash == "preHash":
                 allowed.add("hashAlg")
             if not deterministic:
                 allowed.add("rnd")
             require_allowed_fields(test, allowed, test_path)
-            _validate_common_siggen_test(test, test_path, deterministic, parameter_set)
+            _validate_common_siggen_test(
+                test, test_path, deterministic, parameter_set, key_format
+            )
             _validate_external_message(test, test_path, str(pre_hash))
 
 
@@ -266,14 +298,23 @@ def _validate_common_siggen_test(
     path: str,
     deterministic: bool,
     parameter_set: str,
+    key_format: str = "expanded",
 ) -> None:
     require_int(require_field(test, "tcId", path), child_path(path, "tcId"))
-    require_hex_string(
-        require_field(test, "sk", path),
-        child_path(path, "sk"),
-        allow_empty=False,
-        exact_bytes=SECRET_KEY_BYTES[parameter_set],
-    )
+    if key_format == "seed":
+        require_hex_string(
+            require_field(test, "seed", path),
+            child_path(path, "seed"),
+            allow_empty=False,
+            exact_bytes=SEED_BYTES,
+        )
+    else:
+        require_hex_string(
+            require_field(test, "sk", path),
+            child_path(path, "sk"),
+            allow_empty=False,
+            exact_bytes=SECRET_KEY_BYTES[parameter_set],
+        )
     if deterministic:
         require_absent(test, "rnd", path, "deterministic is true")
     else:

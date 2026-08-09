@@ -154,7 +154,7 @@ namespace NIST.CVP.ACVTS.Libraries.Orleans.Grains
 
         private static void RegisterServices(IServiceCollection svc, OrleansConfig orleansConfig)
         {
-            svc.AddSingleton(new LimitedConcurrencyLevelTaskScheduler(GetOrleansNodeMaxConcurrency(orleansConfig)));
+            svc.AddSingleton(new LimitedConcurrencyLevelTaskScheduler(System.Math.Max(Environment.ProcessorCount - 2, 1)));
             svc.AddSingleton<IEntropyProviderFactory, EntropyProviderFactory>();
             svc.AddSingleton<IRandom800_90, Random800_90>();
             svc.AddSingleton<IEntropyProvider, EntropyProvider>();
@@ -318,30 +318,6 @@ namespace NIST.CVP.ACVTS.Libraries.Orleans.Grains
             #endregion Crypto Registrations
         }
 
-        private static int GetOrleansNodeMaxConcurrency(OrleansConfig orleansConfig)
-        {
-            var localIpAddress = GetLocalIpAddress();
 
-            var nodeConfig = orleansConfig.OrleansNodeConfig
-                .FirstOrDefault(f => f.HostName.Equals(localIpAddress, StringComparison.OrdinalIgnoreCase) ||
-                                     f.HostName.Equals("localhost", StringComparison.OrdinalIgnoreCase));
-
-            if (nodeConfig == null)
-            {
-                throw new Exception("Could not reconcile IP address of node. Ensure this node's IP address is listed within appsettings.[env].json under 'OrleansNodeConfig'");
-            }
-
-            return nodeConfig.MaxConcurrentWork;
-        }
-
-        private static string GetLocalIpAddress()
-        {
-            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
-            {
-                socket.Connect("8.8.8.8", 65530);
-                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-                return endPoint?.Address.ToString();
-            }
-        }
     }
 }

@@ -15,7 +15,6 @@ namespace NIST.CVP.ACVTS.Libraries.Generation.SPDM
         public string[] Conformances { get; set; }
 
         public MathDomain KeyLen { get; set; }
-        public MathDomain THLen { get; set; }
         public SPDMVersions[] SPDMVersion { get; set; } = [];
         public bool[] UsesPSK { get; set; } = [];
         public HashFunctions[] HashAlgs { get; set; } = [];

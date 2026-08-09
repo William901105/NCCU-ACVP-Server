@@ -18,20 +18,13 @@ public class ParameterValidator : ParameterValidatorBase, IParameterValidator<Pa
     {
         var errors = new List<string>();
 
-        // TODO do we want to restrict in some manner the valid heights of merkle trees to test?
-        // the difference between a height 15 and height 20 tree is quite pronounced, and the algorithm supports up to height 25.
-        // height 15 = 1 << 15 =       32_768
-        // height 20 = 1 << 20 =    1_048_576
-        // height 25 = 1 << 25 =   33_554_432
-        // The generation time/storage constraints for the increasing tree sizes grows at the same rate as the number of nodes 
-
         if (!ValidateAlgoMode(parameters, new[] { AlgoMode.LMS_KeyGen_v1_0, AlgoMode.LMS_SigGen_v1_0, AlgoMode.LMS_SigVer_v1_0 }, errors))
             return new ParameterValidateResponse(errors);
 
         // Validate only specific *or* general are used, not both
         ValidateGeneralSpecific(parameters, errors);
 
-        // General validation - ensure that at least one LmOts matches hash functions/output from Lms, and vice verse
+        // General validation - ensure that at least one LmOts matches hash functions/output from Lms, and vice versa
         ValidateGeneral(parameters.Capabilities, errors);
 
         // Specific validation - ensure that Lms LmOts pairs match hash functions/output
@@ -75,11 +68,10 @@ public class ParameterValidator : ParameterValidatorBase, IParameterValidator<Pa
             return;
         }
 
-        if (errors.AddIfNotNullOrEmpty(ValidateArray(parametersCapabilities.LmsModes, VALID_LMS_TYPES,
-                "LmsTypes")))
+        if (errors.AddIfNotNullOrEmpty(ValidateArray(parametersCapabilities.LmsModes, VALID_LMS_TYPES, "LmsTypes")))
             return;
-        if (errors.AddIfNotNullOrEmpty(ValidateArray(parametersCapabilities.LmOtsModes, VALID_LMOTS_TYPES,
-                "LmOtsTypes")))
+        
+        if (errors.AddIfNotNullOrEmpty(ValidateArray(parametersCapabilities.LmOtsModes, VALID_LMOTS_TYPES, "LmOtsTypes")))
             return;
 
         // Get "attributes" of each registered LMS and LM-OTS.
@@ -90,6 +82,7 @@ public class ParameterValidator : ParameterValidatorBase, IParameterValidator<Pa
                 Function = item.ShaMode,
                 OutputLength = item.M
             }).Distinct().ToList();
+        
         var lmOtsAttributes = parametersCapabilities.LmOtsModes
             .Select(AttributesHelper.GetLmOtsAttribute)
             .Select(item => new
@@ -126,10 +119,10 @@ public class ParameterValidator : ParameterValidatorBase, IParameterValidator<Pa
 
         foreach (var capability in parametersSpecificCapabilities)
         {
-            if (errors.AddIfNotNullOrEmpty(ValidateArray(new[] { capability.LmsMode }, VALID_LMS_TYPES,
+            if (errors.AddIfNotNullOrEmpty(ValidateArray([capability.LmsMode], VALID_LMS_TYPES,
                     "LmsTypes")))
                 return;
-            if (errors.AddIfNotNullOrEmpty(ValidateArray(new[] { capability.LmOtsMode }, VALID_LMOTS_TYPES,
+            if (errors.AddIfNotNullOrEmpty(ValidateArray([capability.LmOtsMode], VALID_LMOTS_TYPES,
                     "LmOtsTypes")))
                 return;
 

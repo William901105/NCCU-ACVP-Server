@@ -14,10 +14,12 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.DRBG
         protected BitString V = null;
         protected BitString Key = null;
         protected DrbgCounterAttributes CounterAttributes;
+        protected int CounterFieldLength { get; set; }
 
         protected DrbgCounterBase(IEntropyProvider entropyProvider, DrbgParameters drbgParameters) : base(entropyProvider, drbgParameters)
         {
             CounterAttributes = DrbgAttributesHelper.GetCounterDrbgAttributes(drbgParameters.Mode);
+            CounterFieldLength = drbgParameters.CounterFieldLength;
         }
 
         protected override DrbgStatus InstantiateAlgorithm(BitString entropyInput, BitString nonce, BitString personalizationString)
@@ -221,15 +223,32 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.DRBG
             // 4. While (len(temp) < requested_number_of_bits) do:
             while (temp.BitLength < requestedNumberOfBits)
             {
-                // 4.1 V = (V + 1) mod 2^outlen
-                V = V.BitStringAddition(BitString.One()).GetLeastSignificantBits(CounterAttributes.OutputLength);
+                // 4.1 If ctr_len < blocklen
+                if (CounterFieldLength < CounterAttributes.BlockSize)
+                {
+                    // 4.1.1 inc = (rightmost (V, ctr_len) + 1) mod 2^ctr_len
+                    BitString inc = V.GetLeastSignificantBits(CounterFieldLength)
+                                     .BitStringAddition(BitString.One())
+                                     .GetLeastSignificantBits(CounterFieldLength);
+
+                    // 4.1.2 V = leftmost (V, blocklen-ctr_len) || inc
+                    V = V.GetMostSignificantBits(CounterAttributes.BlockSize - CounterFieldLength)
+                        .ConcatenateBits(inc);
+                }
+                else
+                {
+                    // 4.1.2 Else - = (V+1) mod 2^blocklen
+                    V = V.BitStringAddition(BitString.One())
+                         .GetLeastSignificantBits(CounterAttributes.BlockSize);
+                }
 
                 // 4.2 output_block = Block_Encrypt(Key, V)
                 BitString outputBlock = BlockEncrypt(Key, V);
+
                 // 4.3 temp = temp || output_block
                 temp = temp.ConcatenateBits(outputBlock);
             }
-
+            
             // 5. returned_bits = Leftmost requested_number_of_bits of temp
             var returnedBits = temp.GetMostSignificantBits(requestedNumberOfBits);
 
@@ -269,7 +288,7 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.DRBG
                 {
                     additionalInput = additionalInput.ConcatenateBits(new BitString(CounterAttributes.SeedLength - tempLen));
                 }
-
+            
                 // 2.3 (Key, V) = Update(additional_input, Key, V)
                 Update(additionalInput);
             }
@@ -285,10 +304,24 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.DRBG
             // 4. While (len(temp) < requested_number_of_bits) do:
             while (temp.BitLength < requestedNumberOfBits)
             {
-                // 4.1 V = (V + 1) mod 2^outlen
-                V = V
-                    .BitStringAddition(BitString.One())
-                    .GetLeastSignificantBits(CounterAttributes.OutputLength);
+                // 4.1 If ctr_len < blocklen
+                if (CounterFieldLength < CounterAttributes.BlockSize)
+                {
+                    // 4.1.1 inc = (rightmost (V, ctr_len) + 1) mod 2^ctr_len
+                    BitString inc = V.GetLeastSignificantBits(CounterFieldLength)
+                                     .BitStringAddition(BitString.One())
+                                     .GetLeastSignificantBits(CounterFieldLength);
+
+                    // 4.1.2 V = leftmost (V, blocklen-ctr_len) || inc
+                    V = V.GetMostSignificantBits(CounterAttributes.BlockSize - CounterFieldLength)
+                         .ConcatenateBits(inc);
+                }
+                else
+                {
+                    // 4.1.2 Else - = (V+1) mod 2^blocklen
+                    V = V.BitStringAddition(BitString.One())
+                         .GetLeastSignificantBits(CounterAttributes.BlockSize);
+                }
 
                 // 4.2 output_block = Block_Encrypt(Key, V)
                 BitString outputBlock = BlockEncrypt(Key, V);
@@ -457,12 +490,28 @@ namespace NIST.CVP.ACVTS.Libraries.Crypto.DRBG
             // 2. While (len(temp)<seedlen) do:
             while (temp.BitLength < CounterAttributes.SeedLength)
             {
-                v = v
-                    .BitStringAddition(BitString.One())
-                    .ConcatenateBits(new BitString(CounterAttributes.OutputLength - v.BitLength)); // Add zeroes to bitstring to make it the length of the OutputLength
+                // 2.1 - If ctr_len < blocklen
+                if (CounterFieldLength < CounterAttributes.BlockSize)
+                {
+                    // 2.1.1 - inc = (rightmost (V, ctr_len) + 1) mod 2^ctr_len
+                    BitString inc = v.GetLeastSignificantBits(CounterFieldLength)
+                                     .BitStringAddition(BitString.One())
+                                     .GetLeastSignificantBits(CounterFieldLength);
 
+                    // 2.1.2 - V = leftmost (V, blocklen-ctr_len) || inc
+                    v = v.GetMostSignificantBits(CounterAttributes.BlockSize - CounterFieldLength)
+                         .ConcatenateBits(inc);
+                }
+                else // 2.1 - Else - = (V+1) mod 2^blocklen
+                {
+                    v = v.BitStringAddition(BitString.One())
+                         .GetLeastSignificantBits(CounterAttributes.BlockSize);
+                }
+                                
+                // 2.2
                 BitString outputBlock = BlockEncrypt(key, v);
-
+                
+                // 2.3
                 temp = temp.ConcatenateBits(outputBlock);
             }
 

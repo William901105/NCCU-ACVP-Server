@@ -17,4 +17,4 @@ namespace NIST.CVP.ACVTS.Generation.GenValApp.Models
             GenValMode = genValMode;
         }
     }
-}
+}

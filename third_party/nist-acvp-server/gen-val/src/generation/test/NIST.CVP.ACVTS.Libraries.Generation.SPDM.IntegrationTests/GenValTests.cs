@@ -38,8 +38,7 @@ public class GenValTests : GenValTestsSingleRunnerBase
             HashAlgs = [HashFunctions.Sha3_d256],
             KeyLen = new MathDomain().AddSegment(new ValueDomainSegment(256)),
             SPDMVersion = [SPDMVersions.SPDM13],
-            UsesPSK = [true],
-            THLen = new MathDomain().AddSegment(new ValueDomainSegment(256)),
+            UsesPSK = [true]
         };
             
         return CreateRegistration(targetFolder, p);
@@ -55,8 +54,7 @@ public class GenValTests : GenValTestsSingleRunnerBase
             HashAlgs = ParameterValidator.VALID_HASH_FUNCTIONS,
             KeyLen = new MathDomain().AddSegment(new RangeDomainSegment(null, 128, 4096, 8)),
             SPDMVersion = ParameterValidator.VALID_VERSIONS,
-            UsesPSK = [true, false],
-            THLen = new MathDomain().AddSegment(new RangeDomainSegment(null, 256, 512, 128))
+            UsesPSK = [true, false]
         };
 
         return CreateRegistration(targetFolder, p);

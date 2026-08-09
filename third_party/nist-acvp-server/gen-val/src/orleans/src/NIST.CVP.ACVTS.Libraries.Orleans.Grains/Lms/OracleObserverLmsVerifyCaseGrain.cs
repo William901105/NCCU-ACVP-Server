@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using NIST.CVP.ACVTS.Libraries.Common;
 using NIST.CVP.ACVTS.Libraries.Common.Helpers;
@@ -43,9 +44,8 @@ public class OracleObserverLmsVerifyCaseGrain : ObservableOracleGrainBase<Verify
     {
         var message = _rand.GetRandomBitString(_param.MessageLength);
         
-        // We don't actually track the state of the tree so pick a random Q in the tree. This is done for every individual test case, so there is a slight chance a Q is duplicated in samples
-        var leafCount = 1 << _param.LmsKeyPair.LmsAttribute.H;
-        _param.LmsKeyPair.PrivateKey.SetQ(_rand.GetRandomInt(0, leafCount));
+        // We don't actually track the state of the tree, so use what the gen/vals tells us which should be unique
+        _param.LmsKeyPair.PrivateKey.SetQ(_param.Q);
         
         var signature = _lmsSigner.Sign(_param.LmsKeyPair.PrivateKey, _randomizer, message.ToBytes());
         var result = new LmsSignatureResult
@@ -61,13 +61,9 @@ public class OracleObserverLmsVerifyCaseGrain : ObservableOracleGrainBase<Verify
             
             case LmsSignatureDisposition.ModifyHeader:
                 // Pick a random other LmsAttribute and use that as part of the encoding for the signature
-                var allLmsModes = EnumHelpers.GetEnums<LmsMode>();
-                LmsMode newLmsMode;
-                do
-                {
-                    newLmsMode = allLmsModes[_rand.GetRandomInt(0, allLmsModes.Count)];
-                } while (newLmsMode == _param.LmsMode || newLmsMode == LmsMode.Invalid);
-
+                var allLmsModes = EnumHelpers.GetEnums<LmsMode>().Except([_param.LmsMode, LmsMode.Invalid]).ToList();
+                var newLmsMode = allLmsModes[_rand.GetRandomInt(0, allLmsModes.Count)];
+                
                 var newLmsAttribute = AttributesHelper.GetLmsAttribute(newLmsMode);
                 var currentLmOtsAttribute = _param.LmsKeyPair.PrivateKey.LmOtsAttribute;
                 var lmOtsSignatureLength = currentLmOtsAttribute.NumericIdentifier.Length + currentLmOtsAttribute.N + (currentLmOtsAttribute.P * currentLmOtsAttribute.N);

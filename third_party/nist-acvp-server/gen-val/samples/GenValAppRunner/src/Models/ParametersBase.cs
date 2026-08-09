@@ -11,4 +11,4 @@ namespace NIST.CVP.ACVTS.Generation.GenValApp.Models
         public bool IsSample { get; set; }
         public string[] Conformances { get; set; }
     }
-}
+}

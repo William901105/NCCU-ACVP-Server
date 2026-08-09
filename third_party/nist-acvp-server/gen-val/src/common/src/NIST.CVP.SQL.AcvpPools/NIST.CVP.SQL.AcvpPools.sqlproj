@@ -77,4 +77,4 @@
     <Build Include="dbo\Stored Procedures\GetPoolLogTypeIdFromName.sql" />
     <Build Include="dbo\Stored Procedures\AddPoolLogEntry.sql" />
   </ItemGroup>
-</Project>
+</Project>

@@ -13,4 +13,4 @@ namespace NIST.CVP.ACVTS.Libraries.Oracle.Abstractions.DispositionTypes
         [EnumMember(Value = "Failure - Message is > N but < modulo that is all 1's")]
         MsgGreaterNLessModulo,
     }
-}
+}

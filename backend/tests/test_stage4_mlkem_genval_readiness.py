@@ -184,16 +184,18 @@ def test_mlkem_tracked_text_evidence_has_no_machine_paths_or_temp_paths() -> Non
             assert all(token not in text for token in FORBIDDEN_PATH_TOKENS), path
 
 
-def test_copy_script_retains_mldsa_and_adds_mlkem_json_file_allowlist() -> None:
+def test_copy_script_requires_all_supported_legacy_and_tr1_fixture_directories() -> None:
     source = COPY_SCRIPT.read_text(encoding="utf-8")
 
     for name in (
         "ML-DSA-keyGen-FIPS204",
         "ML-DSA-sigGen-FIPS204",
+        "ML-DSA-sigGen-FIPS204-tr1",
         "ML-DSA-sigVer-FIPS204",
         "ML-KEM-keyGen-FIPS203",
         "ML-KEM-encapDecap-FIPS203",
+        "ML-KEM-encapDecap-FIPS203-tr1",
     ):
         assert name in source
-    assert "Warning: missing NIST GenVal json-files directory: ${name}" in source
-    assert "Warning: missing ML-DSA json-files directory" not in source
+    assert "Required NIST GenVal json-files directory is missing: ${name}" in source
+    assert 'source_commit}" != "${PINNED_COMMIT}' in source

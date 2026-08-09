@@ -2,7 +2,7 @@ using NIST.CVP.ACVTS.Libraries.Common;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.PQC.Dilithium;
 using NIST.CVP.ACVTS.Libraries.Crypto.Common.PQC.Enums;
 using NIST.CVP.ACVTS.Libraries.Generation.Core.PqcHelpers;
-using NIST.CVP.ACVTS.Libraries.Generation.ML_DSA.FIPS204.SigVer;
+using NIST.CVP.ACVTS.Libraries.Generation.ML_DSA.FIPS204.v1_0.SigVer;
 using NIST.CVP.ACVTS.Libraries.Generation.Tests;
 using NIST.CVP.ACVTS.Libraries.Math.Domain;
 using NIST.CVP.ACVTS.Tests.Core.TestCategoryAttributes;

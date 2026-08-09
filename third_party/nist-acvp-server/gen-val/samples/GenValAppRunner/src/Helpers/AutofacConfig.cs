@@ -75,4 +75,4 @@ namespace NIST.CVP.ACVTS.Generation.GenValApp.Helpers
             return types;
         }
     }
-}
+}

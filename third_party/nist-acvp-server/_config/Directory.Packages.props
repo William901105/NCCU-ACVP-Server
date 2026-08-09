@@ -68,4 +68,4 @@
     <PackageVersion Include="NIST.CVP.ACVTS.Libraries.Orleans.Grains.Interfaces" Version="$(GenValPackageVersion)" />
     <PackageVersion Include="NIST.CVP.ACVTS.Tests.Core" Version="$(GenValPackageVersion)" />
   </ItemGroup>
-</Project>
+</Project>

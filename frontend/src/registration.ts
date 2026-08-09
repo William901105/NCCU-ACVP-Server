@@ -1,5 +1,6 @@
 import type {
   AcvpParameterSet,
+  AcvpRevision,
   CapabilityMode,
   FipsVersionConfig,
   JsonObject,
@@ -11,6 +12,7 @@ export interface BuildRegistrationAlgorithmsInput {
   modes: CapabilityMode[];
   parameterSets: AcvpParameterSet[];
   functions: MlKemFunction[];
+  revisions?: Partial<Record<CapabilityMode, AcvpRevision>>;
 }
 
 const PREREQUISITES = [{ algorithm: "SHA", valValue: "same" }];
@@ -19,7 +21,8 @@ export function buildRegistrationAlgorithms({
   config,
   modes,
   parameterSets,
-  functions
+  functions,
+  revisions = {}
 }: BuildRegistrationAlgorithmsInput): JsonObject[] {
   if (modes.length === 0) {
     throw new Error("Select at least one mode.");
@@ -32,10 +35,18 @@ export function buildRegistrationAlgorithms({
   }
 
   return modes.map((mode) => {
+    const modeConfig = config.modes.find((item) => item.id === mode);
+    if (!modeConfig) {
+      throw new Error(`Unsupported mode ${mode} for ${config.algorithm}.`);
+    }
+    const revision = revisions[mode] ?? modeConfig.defaultRevision;
+    if (!modeConfig.revisions.includes(revision)) {
+      throw new Error(`Unsupported revision ${revision} for ${config.algorithm}/${mode}.`);
+    }
     const registration: JsonObject = {
       algorithm: config.algorithm,
       mode,
-      revision: config.revision,
+      revision,
       prereqVals: PREREQUISITES,
       parameterSets: [...parameterSets]
     };
@@ -43,6 +54,9 @@ export function buildRegistrationAlgorithms({
     if (config.id === "FIPS203") {
       if (mode === "encapDecap") {
         registration.functions = [...functions];
+        if (revision === "FIPS203-tr1") {
+          registration.keyFormats = ["expanded", "seed"];
+        }
       }
       return registration;
     }
@@ -62,6 +76,9 @@ export function buildRegistrationAlgorithms({
     }
     if (mode === "sigGen") {
       registration.deterministic = [true, false];
+      if (revision === "FIPS204-tr1") {
+        registration.keyFormats = ["expanded", "seed"];
+      }
     }
     return registration;
   });

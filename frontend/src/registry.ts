@@ -16,9 +16,18 @@ export const FIPS_REGISTRY: FipsVersionConfig[] = [
     enabled: true,
     status: "available",
     modes: [
-      { id: "keyGen", label: "keyGen", enabled: true },
-      { id: "sigGen", label: "sigGen", enabled: true },
-      { id: "sigVer", label: "sigVer", enabled: true }
+      {
+        id: "keyGen", label: "keyGen", enabled: true,
+        revisions: ["FIPS204"], defaultRevision: "FIPS204"
+      },
+      {
+        id: "sigGen", label: "sigGen", enabled: true,
+        revisions: ["FIPS204", "FIPS204-tr1"], defaultRevision: "FIPS204-tr1"
+      },
+      {
+        id: "sigVer", label: "sigVer", enabled: true,
+        revisions: ["FIPS204"], defaultRevision: "FIPS204"
+      }
     ],
     defaultModes: ["keyGen"],
     parameterSets: ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
@@ -33,8 +42,14 @@ export const FIPS_REGISTRY: FipsVersionConfig[] = [
     enabled: true,
     status: "available",
     modes: [
-      { id: "keyGen", label: "keyGen", enabled: true },
-      { id: "encapDecap", label: "encapDecap", enabled: true }
+      {
+        id: "keyGen", label: "keyGen", enabled: true,
+        revisions: ["FIPS203"], defaultRevision: "FIPS203"
+      },
+      {
+        id: "encapDecap", label: "encapDecap", enabled: true,
+        revisions: ["FIPS203", "FIPS203-tr1"], defaultRevision: "FIPS203-tr1"
+      }
     ],
     defaultModes: ["keyGen"],
     parameterSets: ["ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"],

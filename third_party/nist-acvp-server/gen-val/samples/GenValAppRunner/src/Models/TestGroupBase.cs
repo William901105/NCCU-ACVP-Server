@@ -9,4 +9,4 @@ namespace NIST.CVP.ACVTS.Generation.GenValApp.Models
         public string TestType { get; set; }
         public List<TestCaseBase> Tests { get; set; }
     }
-}
+}

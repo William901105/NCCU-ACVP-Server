@@ -30,6 +30,7 @@ public class TestCaseValidatorAft : ITestCaseValidatorAsync<TestGroup, TestCase>
         ValidateResultPresent(suppliedResult, errors);
         if (errors.Count == 0)
         {
+            ValidatePrivateKeyUniqueness(suppliedResult, errors);
             await CheckResults(suppliedResult, errors, expected, provided);
         }
 
@@ -56,6 +57,23 @@ public class TestCaseValidatorAft : ITestCaseValidatorAsync<TestGroup, TestCase>
         }
     }
 
+    private void ValidatePrivateKeyUniqueness(TestCase suppliedResult, List<string> errors)
+    {
+        foreach (var testCase in suppliedResult.ParentGroup.Tests)
+        {
+            if (suppliedResult.TestCaseId == testCase.TestCaseId)
+            {
+                continue;
+            }
+
+            if (suppliedResult.Signature.GetMostSignificantBits(32)
+                .Equals(testCase.Signature.GetMostSignificantBits(32)))
+            {
+                errors.Add($"Duplicate private key detected for tcId: {suppliedResult.TestCaseId} and tcId: {testCase.TestCaseId}");
+            }
+        }
+    }
+    
     private async Task CheckResults(TestCase suppliedResult, List<string> errors, Dictionary<string, string> expected, Dictionary<string, string> provided)
     {
         var verifyResult = await _deferredResolver.CompleteDeferredCryptoAsync(_group, _expectedResult, suppliedResult);

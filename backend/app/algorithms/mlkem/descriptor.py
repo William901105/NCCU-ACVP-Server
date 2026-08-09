@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ...acvp_core.algorithm_descriptor import AlgorithmDescriptor
+from ...acvp_core.algorithm_identity import AlgorithmIdentity
 
 
 MLKEM_NIST_REFERENCES = (
@@ -22,6 +23,10 @@ def build_mlkem_descriptor() -> AlgorithmDescriptor:
         response_schema_version="draft-celi-acvp-ml-kem-01",
         execution_backend="nist-genval",
         nist_references=MLKEM_NIST_REFERENCES,
+        supported_identities=(
+            AlgorithmIdentity("ML-KEM", "keyGen", "FIPS203"),
+            AlgorithmIdentity("ML-KEM", "encapDecap", "FIPS203"),
+        ),
         capability_metadata={
             "functions": [
                 "encapsulation",
@@ -59,6 +64,9 @@ def build_mlkem_tr1_descriptor() -> AlgorithmDescriptor:
         response_schema_version="draft-celi-acvp-ml-kem-01",
         execution_backend="nist-genval",
         nist_references=MLKEM_NIST_REFERENCES,
+        supported_identities=(
+            AlgorithmIdentity("ML-KEM", "encapDecap", "FIPS203-tr1"),
+        ),
         capability_metadata={
             "functions": [
                 "encapsulation",

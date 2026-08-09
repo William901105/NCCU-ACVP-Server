@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SOURCE_ROOT="${1:-${REPO_ROOT}/../ACVP-Server}"
 TARGET_ROOT="${REPO_ROOT}/third_party/nist-acvp-server"
+PINNED_COMMIT="a7f283cdc87d2d6dd93c1bac59e5622c5f9f8324"
+PINNED_TAG="v1.1.0.43"
+PINNED_DESCRIPTION="v1.1.0.43-4-ga7f283cd"
+SOURCE_REPOSITORY="https://github.com/usnistgov/ACVP-Server"
 
 if [[ ! -d "${SOURCE_ROOT}" ]]; then
   echo "NIST ACVP-Server checkout not found: ${SOURCE_ROOT}" >&2
@@ -13,6 +17,12 @@ fi
 
 if [[ ! -d "${SOURCE_ROOT}/_config" || ! -d "${SOURCE_ROOT}/gen-val" ]]; then
   echo "Expected _config/ and gen-val/ under ${SOURCE_ROOT}" >&2
+  exit 1
+fi
+
+source_commit="$(git -C "${SOURCE_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+if [[ "${source_commit}" != "${PINNED_COMMIT}" ]]; then
+  echo "NIST ACVP-Server source must be checked out at ${PINNED_COMMIT}; found ${source_commit:-unknown}." >&2
   exit 1
 fi
 
@@ -36,8 +46,10 @@ mkdir -p "${TARGET_ROOT}/gen-val/json-files"
 for name in \
   ML-KEM-keyGen-FIPS203 \
   ML-KEM-encapDecap-FIPS203 \
+  ML-KEM-encapDecap-FIPS203-tr1 \
   ML-DSA-keyGen-FIPS204 \
   ML-DSA-sigGen-FIPS204 \
+  ML-DSA-sigGen-FIPS204-tr1 \
   ML-DSA-sigVer-FIPS204
 do
   if [[ -d "${SOURCE_ROOT}/gen-val/json-files/${name}" ]]; then
@@ -48,7 +60,8 @@ do
       "${SOURCE_ROOT}/gen-val/json-files/${name}/" \
       "${TARGET_ROOT}/gen-val/json-files/${name}/"
   else
-    echo "Warning: missing NIST GenVal json-files directory: ${name}" >&2
+    echo "Required NIST GenVal json-files directory is missing: ${name}" >&2
+    exit 1
   fi
 done
 
@@ -56,15 +69,17 @@ if [[ -f "${SOURCE_ROOT}/README.md" ]]; then
   cp "${SOURCE_ROOT}/README.md" "${TARGET_ROOT}/NIST_README.md"
 fi
 
-source_commit="$(git -C "${SOURCE_ROOT}" rev-parse HEAD 2>/dev/null || echo "unknown")"
 copied_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 cat > "${TARGET_ROOT}/NIST_SOURCE.md" <<EOF
 # NIST ACVP-Server Source
 
-- source repository: NIST ACVP-Server
+- source repository: ${SOURCE_REPOSITORY}
 - source git commit: ${source_commit}
+- upstream release/tag: ${PINNED_TAG}
+- source git describe: ${PINNED_DESCRIPTION}
 - copied timestamp: ${copied_at}
+- selection reason: latest official master commit as of 2026-08-09; includes v1.1.0.43 tr1 support and the post-release official fixture corrections.
 - integration note: NIST code is copied into this repository; it is not a git submodule.
 
 This directory vendors the NIST ACVP-Server Gen/Val code needed by the NCCU

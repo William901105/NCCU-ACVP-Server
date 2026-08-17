@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
+from ..access_tokens import issue_access_token
 from ..acvp_core.dependencies import get_algorithm_registry
 from ..acvp_core.registry import AlgorithmModuleRegistry
 from ..models import (
@@ -49,6 +50,11 @@ from .service import (
 
 
 router = APIRouter(prefix="/acvp/v1", tags=["ACVP v1"])
+
+
+@router.post("/accessTokens")
+def create_acvp_v1_access_token() -> Any:
+    return _canonical_response(issue_access_token())
 
 
 @router.get("/version")

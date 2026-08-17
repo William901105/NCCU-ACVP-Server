@@ -15,8 +15,6 @@ NEXT_VECTOR_GENERATION_ACTION = (
 
 def negotiate_mlkem_capabilities(
     container: Dict[str, Any],
-    *,
-    revision: str = REVISION,
 ) -> Dict[str, Any]:
     obj = require_object(container, "$")
     registrations = require_array(
@@ -28,7 +26,7 @@ def negotiate_mlkem_capabilities(
     for index, item in enumerate(registrations):
         path = child_path("$.algorithms", index)
         try:
-            registration = validate_registration(item, revision=revision)
+            registration = validate_registration(item)
         except AcvpSchemaError as exc:
             error_path = exc.path or "$"
             suffix = error_path[1:] if error_path.startswith("$") else error_path
@@ -39,8 +37,6 @@ def negotiate_mlkem_capabilities(
         }
         if registration["mode"] == "encapDecap":
             entry["functions"] = list(registration["functions"])
-            if "keyFormats" in registration:
-                entry["keyFormats"] = list(registration["keyFormats"])
         entry["status"] = "accepted"
         negotiated.append(entry)
 
@@ -52,7 +48,7 @@ def negotiate_mlkem_capabilities(
         )
     return {
         "algorithm": ALGORITHM,
-        "revision": revision,
+        "revision": REVISION,
         "negotiated": negotiated,
         "unsupported": [],
         "warnings": [],

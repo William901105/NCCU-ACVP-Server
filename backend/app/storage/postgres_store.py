@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
-import sqlite3
-from pathlib import Path
+import psycopg
+from psycopg.rows import dict_row
 from typing import Any, Callable, Dict, Iterator, List, MutableMapping, Optional
+from urllib.parse import urlparse
 
 from ..acvp_parser import AcvpParseError, normalize_acvp_json, summarize_vector_set
 from .json_utils import json_dumps, json_loads, utc_now_iso
@@ -77,7 +78,6 @@ CREATE TABLE IF NOT EXISTS acvp_vector_sets (
     expected_results_json TEXT NOT NULL,
     response_json TEXT,
     validation_result_json TEXT,
-    report_json TEXT,
     downloaded_at TEXT,
     submitted_at TEXT,
     validated_at TEXT,
@@ -87,8 +87,59 @@ CREATE TABLE IF NOT EXISTS acvp_vector_sets (
     FOREIGN KEY(test_session_id) REFERENCES acvp_sessions(test_session_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS acvp_reports (
+    report_sequence BIGSERIAL PRIMARY KEY,
+    report_id TEXT NOT NULL UNIQUE,
+    vector_set_id TEXT NOT NULL,
+    test_session_id TEXT NOT NULL,
+    vs_id INTEGER NOT NULL,
+    schema_version TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    disposition TEXT NOT NULL,
+    passed INTEGER NOT NULL DEFAULT 0,
+    publishable INTEGER NOT NULL DEFAULT 0,
+    is_latest INTEGER NOT NULL DEFAULT 0,
+    response_sha256 TEXT NOT NULL,
+    artifact_sha256 TEXT NOT NULL,
+    artifact_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(vector_set_id)
+        REFERENCES acvp_vector_sets(vector_set_id) ON DELETE CASCADE,
+    FOREIGN KEY(test_session_id)
+        REFERENCES acvp_sessions(test_session_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS test_vectors (
+    test_vector_id BIGSERIAL PRIMARY KEY,
+    algorithm TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    parameter_set TEXT NOT NULL,
+    tg_id INTEGER,
+    tc_id INTEGER NOT NULL CHECK (tc_id > 0),
+    vector_data JSONB NOT NULL
+        CHECK (jsonb_typeof(vector_data) = 'object'),
+    source TEXT NOT NULL DEFAULT 'NIST',
+    source_version TEXT NOT NULL DEFAULT 'unknown',
+    sha256 TEXT NOT NULL UNIQUE,
+    enabled INTEGER NOT NULL DEFAULT 1
+        CHECK (enabled IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_algorithm
+ON test_vectors(algorithm, revision, mode, parameter_set);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_tc
+ON test_vectors(tg_id, tc_id);
+
+CREATE INDEX IF NOT EXISTS idx_test_vectors_enabled
+ON test_vectors(enabled);
+
 CREATE TABLE IF NOT EXISTS acvp_requests (
-    request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id BIGSERIAL PRIMARY KEY,
     test_session_id TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL,
     certification_json TEXT NOT NULL,
@@ -100,7 +151,7 @@ CREATE TABLE IF NOT EXISTS acvp_requests (
 );
 
 CREATE TABLE IF NOT EXISTS state_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     from_status TEXT,
@@ -110,51 +161,235 @@ CREATE TABLE IF NOT EXISTS state_events (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS access_tokens (
+    token_digest TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_imports_mode ON imports(mode);
 CREATE INDEX IF NOT EXISTS idx_demo_sessions_status ON demo_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_acvp_sessions_status ON acvp_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_acvp_vector_sets_session ON acvp_vector_sets(test_session_id);
+CREATE INDEX IF NOT EXISTS idx_acvp_reports_vector_set
+ON acvp_reports(vector_set_id, report_sequence);
+CREATE INDEX IF NOT EXISTS idx_acvp_reports_session_vs
+ON acvp_reports(test_session_id, vs_id, report_sequence);
+ALTER TABLE acvp_reports
+ADD COLUMN IF NOT EXISTS is_latest INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_acvp_reports_latest
+ON acvp_reports(vector_set_id)
+WHERE is_latest = 1;
 CREATE INDEX IF NOT EXISTS idx_acvp_requests_session ON acvp_requests(test_session_id);
 CREATE INDEX IF NOT EXISTS idx_state_events_entity ON state_events(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_access_tokens_expires_at ON access_tokens(expires_at);
 """
 
 
-def get_db_path() -> Path:
-    configured = os.environ.get("ACVP_DB_PATH")
-    if configured:
-        return Path(configured).expanduser()
-    backend_root = Path(__file__).resolve().parents[2]
-    return backend_root / "data" / "acvp.sqlite3"
+def get_database_url() -> str:
+    configured = (
+        os.environ.get("DATABASE_URL")
+        or os.environ.get("ACVP_DATABASE_URL")
+    )
+    if not configured:
+        raise RuntimeError(
+            "DATABASE_URL or ACVP_DATABASE_URL must be configured for PostgreSQL."
+        )
+    return configured
+
+def get_schema_database_url() -> str:
+    return os.environ.get("ACVP_SCHEMA_DATABASE_URL") or get_database_url()
+
+
+
+def _assert_test_database() -> None:
+    database_name = urlparse(get_database_url()).path.lstrip("/")
+    allowed_name = os.environ.get(
+        "ACVP_TEST_DATABASE_NAME",
+        "acvp_test",
+    )
+
+    if database_name != allowed_name:
+        raise RuntimeError(
+            "Refusing to reset PostgreSQL database "
+            f"{database_name!r}; expected test database {allowed_name!r}."
+        )
+
+
+def _translate_qmark(query: str) -> str:
+    return query.replace("?", "%s")
+
+
+class _ConnectionAdapter:
+    def __init__(self, connection: Any):
+        self._connection = connection
+
+    def execute(self, query: str, params: Any = None):
+        translated = _translate_qmark(query)
+        if params is None:
+            return self._connection.execute(translated)
+        return self._connection.execute(translated, params)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._connection.close()
+
+
+def _open_connection(
+    *,
+    autocommit: bool = False,
+    database_url: str | None = None,
+) -> _ConnectionAdapter:
+    connection = psycopg.connect(
+        database_url or get_database_url(),
+        autocommit=autocommit,
+        row_factory=dict_row,
+    )
+    return _ConnectionAdapter(connection)
 
 
 def init_db() -> None:
-    path = get_db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    conn.row_factory = sqlite3.Row
+    conn = _open_connection(
+        autocommit=True,
+        database_url=get_schema_database_url(),
+    )
     try:
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.executescript(SCHEMA_SQL)
+        for statement in SCHEMA_SQL.split(";"):
+            statement = statement.strip()
+            if statement:
+                conn.execute(statement)
         _migrate_public_vs_ids(conn)
-        conn.commit()
+        _migrate_report_artifacts(conn)
     finally:
         conn.close()
 
 
+def _migrate_report_artifacts(conn: _ConnectionAdapter) -> None:
+    columns = {
+        row["column_name"]
+        for row in conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'acvp_vector_sets'
+            """
+        ).fetchall()
+    }
+
+    if "report_json" not in columns:
+        return
+
+    rows = conn.execute(
+        """
+        SELECT vector_set_id, test_session_id, vs_id, report_json
+        FROM acvp_vector_sets
+        WHERE report_json IS NOT NULL
+        """
+    ).fetchall()
+
+    for row in rows:
+        report_store = json_loads(row["report_json"], default=None)
+        if not isinstance(report_store, dict):
+            raise ValueError(
+                "Cannot migrate malformed report_json for vector set "
+                f"{row['vector_set_id']!r}"
+            )
+
+        _save_acvp_report_store(
+            conn,
+            {
+                "vectorSetId": row["vector_set_id"],
+                "testSessionId": row["test_session_id"],
+                "vsId": row["vs_id"],
+                "report": report_store,
+            },
+        )
+
+    conn.execute(
+        "ALTER TABLE acvp_vector_sets DROP COLUMN report_json"
+    )
+
+
 def reset_db_for_tests() -> None:
-    path = get_db_path()
-    if path.exists():
-        path.unlink()
+    _assert_test_database()
+    conn = _open_connection(autocommit=True)
+    try:
+        conn.execute("DROP TABLE IF EXISTS access_tokens CASCADE")
+        conn.execute("DROP TABLE IF EXISTS state_events CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_requests CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_reports CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_vector_sets CASCADE")
+        conn.execute("DROP TABLE IF EXISTS acvp_sessions CASCADE")
+        conn.execute("DROP TABLE IF EXISTS test_vectors CASCADE")
+        conn.execute("DROP TABLE IF EXISTS demo_sessions CASCADE")
+        conn.execute("DROP TABLE IF EXISTS imports CASCADE")
+    finally:
+        conn.close()
     init_db()
 
 
-def connect() -> sqlite3.Connection:
-    init_db()
-    conn = sqlite3.connect(str(get_db_path()))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+def connect() -> _ConnectionAdapter:
+    return _open_connection()
 
+
+def save_access_token(
+    token_digest: str,
+    *,
+    created_at: str,
+    expires_at: str,
+) -> None:
+    with _write_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO access_tokens (token_digest, created_at, expires_at, revoked_at)
+            VALUES (?, ?, ?, NULL)
+            ON CONFLICT (token_digest) DO UPDATE
+            SET created_at = EXCLUDED.created_at,
+                expires_at = EXCLUDED.expires_at,
+                revoked_at = NULL
+            """,
+            (token_digest, created_at, expires_at),
+        )
+
+
+def get_access_token(token_digest: str) -> Optional[Dict[str, Any]]:
+    with _read_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT token_digest, created_at, expires_at, revoked_at
+            FROM access_tokens
+            WHERE token_digest = ?
+            """,
+            (token_digest,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "tokenDigest": row["token_digest"],
+        "createdAt": row["created_at"],
+        "expiresAt": row["expires_at"],
+        "revokedAt": row["revoked_at"],
+    }
+
+
+def revoke_access_token(token_digest: str, *, revoked_at: str) -> bool:
+    with _write_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE access_tokens
+            SET revoked_at = ?
+            WHERE token_digest = ? AND revoked_at IS NULL
+            """,
+            (revoked_at, token_digest),
+        )
+        return cursor.rowcount > 0
 
 def save_acvp_session(session: Dict[str, Any]) -> None:
     now = utc_now_iso()
@@ -232,7 +467,7 @@ def list_acvp_sessions(
             sql += " OFFSET ?"
             params.append(offset)
     elif offset is not None:
-        sql += " LIMIT -1 OFFSET ?"
+        sql += " LIMIT ALL OFFSET ?"
         params.append(offset)
     with _read_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
@@ -268,6 +503,145 @@ def clear_acvp_sessions() -> None:
         conn.execute("DELETE FROM state_events WHERE entity_type = 'acvp_session'")
 
 
+def _report_artifacts_from_store(report_store: Any) -> List[Dict[str, Any]]:
+    if not isinstance(report_store, dict):
+        return []
+
+    stored = report_store.get("artifacts")
+    if isinstance(stored, list):
+        return [
+            dict(item)
+            for item in stored
+            if isinstance(item, dict) and item.get("reportId")
+        ]
+
+    if report_store.get("reportId"):
+        return [dict(report_store)]
+
+    return []
+
+
+def _save_acvp_report_store(
+    conn: _ConnectionAdapter,
+    vector_set: Dict[str, Any],
+) -> None:
+    vector_set_id = str(vector_set["vectorSetId"])
+    report_store = vector_set.get("report")
+    artifacts = _report_artifacts_from_store(report_store)
+
+    conn.execute(
+        "DELETE FROM acvp_reports WHERE vector_set_id = ?",
+        (vector_set_id,),
+    )
+
+    if not artifacts:
+        return
+
+    latest_report_id = (
+        report_store.get("latestReportId")
+        if isinstance(report_store, dict)
+        else None
+    )
+    available_ids = {
+        str(artifact["reportId"])
+        for artifact in artifacts
+    }
+    if latest_report_id not in available_ids:
+        latest_report_id = str(artifacts[-1]["reportId"])
+
+    now = utc_now_iso()
+
+    for artifact in artifacts:
+        report_id = str(artifact["reportId"])
+        test_session_id = str(
+            artifact.get("testSessionId")
+            or vector_set["testSessionId"]
+        )
+        vs_id = artifact.get("vsId", vector_set.get("vsId"))
+
+        if isinstance(vs_id, bool) or not isinstance(vs_id, int) or vs_id < 0:
+            raise ValueError(
+                f"Report {report_id!r} requires a non-negative numeric vsId"
+            )
+
+        conn.execute(
+            """
+            INSERT INTO acvp_reports (
+                report_id, vector_set_id, test_session_id, vs_id,
+                schema_version, artifact_type, generated_at,
+                disposition, passed, publishable, is_latest,
+                response_sha256, artifact_sha256, artifact_json,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report_id,
+                vector_set_id,
+                test_session_id,
+                vs_id,
+                str(artifact.get("schemaVersion", "")),
+                str(artifact.get("artifactType", "")),
+                str(artifact.get("generatedAt") or now),
+                str(artifact.get("disposition", "error")),
+                1 if artifact.get("passed", False) else 0,
+                1 if artifact.get("publishable", False) else 0,
+                1 if report_id == latest_report_id else 0,
+                str(artifact.get("responseSha256", "")),
+                str(artifact.get("artifactSha256", "")),
+                json_dumps(artifact),
+                now,
+            ),
+        )
+
+
+def _load_acvp_report_store(
+    conn: _ConnectionAdapter,
+    vector_set_id: str,
+) -> Optional[Dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT report_id, schema_version, artifact_type,
+               artifact_json, is_latest
+        FROM acvp_reports
+        WHERE vector_set_id = ?
+        ORDER BY report_sequence
+        """,
+        (vector_set_id,),
+    ).fetchall()
+
+    artifacts: List[Dict[str, Any]] = []
+    latest_report_id: Optional[str] = None
+    latest_schema_version = ""
+    latest_artifact_type = ""
+
+    for row in rows:
+        artifact = json_loads(row["artifact_json"], default=None)
+        if not isinstance(artifact, dict):
+            continue
+
+        artifacts.append(artifact)
+        if row["is_latest"]:
+            latest_report_id = row["report_id"]
+            latest_schema_version = row["schema_version"]
+            latest_artifact_type = row["artifact_type"]
+
+    if not artifacts:
+        return None
+
+    if latest_report_id is None:
+        latest = rows[-1]
+        latest_report_id = latest["report_id"]
+        latest_schema_version = latest["schema_version"]
+        latest_artifact_type = latest["artifact_type"]
+
+    return {
+        "schemaVersion": latest_schema_version,
+        "artifactType": latest_artifact_type,
+        "latestReportId": latest_report_id,
+        "artifacts": artifacts,
+    }
+
+
 def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
     now = utc_now_iso()
     prompt = vector_set["prompt"]
@@ -288,7 +662,6 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
         json_dumps(expected_results),
         _json_or_none(vector_set.get("response")),
         _json_or_none(vector_set.get("validationResult")),
-        _json_or_none(vector_set.get("report")),
         vector_set.get("downloadedAt"),
         vector_set.get("submittedAt"),
         vector_set.get("validatedAt"),
@@ -302,7 +675,7 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
             UPDATE acvp_vector_sets
             SET test_session_id = ?, vs_id = ?, status = ?, algorithm = ?, mode = ?,
                 revision = ?, prompt_json = ?, expected_results_json = ?,
-                response_json = ?, validation_result_json = ?, report_json = ?,
+                response_json = ?, validation_result_json = ?,
                 downloaded_at = ?, submitted_at = ?, validated_at = ?,
                 created_at = ?, updated_at = ?, extra_json = ?
             WHERE vector_set_id = ?
@@ -315,12 +688,14 @@ def save_acvp_vector_set(vector_set: Dict[str, Any]) -> None:
                 INSERT INTO acvp_vector_sets (
                     vector_set_id, test_session_id, vs_id, status, algorithm, mode, revision,
                     prompt_json, expected_results_json, response_json,
-                    validation_result_json, report_json, downloaded_at, submitted_at,
+                    validation_result_json, downloaded_at, submitted_at,
                     validated_at, created_at, updated_at, extra_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (vector_set["vectorSetId"], *values),
             )
+
+        _save_acvp_report_store(conn, vector_set)
 
 
 def get_acvp_vector_set(vector_set_id: str) -> Optional[Dict[str, Any]]:
@@ -329,7 +704,16 @@ def get_acvp_vector_set(vector_set_id: str) -> Optional[Dict[str, Any]]:
             "SELECT * FROM acvp_vector_sets WHERE vector_set_id = ?",
             (vector_set_id,),
         ).fetchone()
-    return _row_to_acvp_vector_set(row) if row is not None else None
+        report_store = (
+            _load_acvp_report_store(conn, vector_set_id)
+            if row is not None
+            else None
+        )
+    return (
+        _row_to_acvp_vector_set(row, report_store=report_store)
+        if row is not None
+        else None
+    )
 
 
 def get_acvp_vector_set_by_vs_id(
@@ -344,7 +728,16 @@ def get_acvp_vector_set_by_vs_id(
             """,
             (test_session_id, vs_id),
         ).fetchone()
-    return _row_to_acvp_vector_set(row) if row is not None else None
+        report_store = (
+            _load_acvp_report_store(conn, row["vector_set_id"])
+            if row is not None
+            else None
+        )
+    return (
+        _row_to_acvp_vector_set(row, report_store=report_store)
+        if row is not None
+        else None
+    )
 
 
 def list_acvp_vector_sets_for_session(test_session_id: str) -> List[Dict[str, Any]]:
@@ -357,7 +750,20 @@ def list_acvp_vector_sets_for_session(test_session_id: str) -> List[Dict[str, An
             """,
             (test_session_id,),
         ).fetchall()
-    return [_row_to_acvp_vector_set(row) for row in rows]
+        report_stores = {
+            row["vector_set_id"]: _load_acvp_report_store(
+                conn,
+                row["vector_set_id"],
+            )
+            for row in rows
+        }
+    return [
+        _row_to_acvp_vector_set(
+            row,
+            report_store=report_stores[row["vector_set_id"]],
+        )
+        for row in rows
+    ]
 
 
 def update_acvp_vector_set(vector_set_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -421,10 +827,14 @@ def create_acvp_request(
                 test_session_id, status, certification_json, message,
                 approved_url, created_at, updated_at
             ) VALUES (?, ?, ?, ?, NULL, ?, ?)
+            RETURNING request_id
             """,
             (test_session_id, status, json_dumps(certification), message, now, now),
         )
-        request_id = int(cursor.lastrowid)
+        row = cursor.fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create ACVP request resource")
+        request_id = int(row["request_id"])
     request = get_acvp_request(request_id)
     if request is None:
         raise RuntimeError("Failed to persist ACVP request resource")
@@ -639,10 +1049,23 @@ def _list_all_acvp_vector_sets() -> List[Dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM acvp_vector_sets ORDER BY created_at, vector_set_id"
         ).fetchall()
-    return [_row_to_acvp_vector_set(row) for row in rows]
+        report_stores = {
+            row["vector_set_id"]: _load_acvp_report_store(
+                conn,
+                row["vector_set_id"],
+            )
+            for row in rows
+        }
+    return [
+        _row_to_acvp_vector_set(
+            row,
+            report_store=report_stores[row["vector_set_id"]],
+        )
+        for row in rows
+    ]
 
 
-def _row_to_acvp_session(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_session(row: Dict[str, Any]) -> Dict[str, Any]:
     extra = json_loads(row["extra_json"], default={}) or {}
     vector_set_ids = json_loads(row["vector_set_ids_json"], default=[]) or []
     session = dict(extra)
@@ -675,7 +1098,11 @@ def _row_to_acvp_session(row: sqlite3.Row) -> Dict[str, Any]:
     return session
 
 
-def _row_to_acvp_vector_set(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_vector_set(
+    row: Dict[str, Any],
+    *,
+    report_store: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     extra = json_loads(row["extra_json"], default={}) or {}
     vector_set = dict(extra)
     vector_set.update(
@@ -690,7 +1117,7 @@ def _row_to_acvp_vector_set(row: sqlite3.Row) -> Dict[str, Any]:
             "expectedResults": json_loads(row["expected_results_json"], default=None),
             "response": json_loads(row["response_json"], default=None),
             "validationResult": json_loads(row["validation_result_json"], default=None),
-            "report": json_loads(row["report_json"], default=None),
+            "report": report_store,
             "mode": row["mode"],
             "downloadedAt": row["downloaded_at"],
             "submittedAt": row["submitted_at"],
@@ -705,7 +1132,7 @@ def _row_to_acvp_vector_set(row: sqlite3.Row) -> Dict[str, Any]:
     return vector_set
 
 
-def _row_to_acvp_request(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_acvp_request(row: Dict[str, Any]) -> Dict[str, Any]:
     request = {
         "requestId": int(row["request_id"]),
         "testSessionId": row["test_session_id"],
@@ -745,13 +1172,23 @@ def _public_vs_id(
     return value
 
 
-def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
+def _migrate_public_vs_ids(conn: _ConnectionAdapter) -> None:
     columns = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(acvp_vector_sets)").fetchall()
+        row["column_name"]
+        for row in conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'acvp_vector_sets'
+            """
+        ).fetchall()
     }
+
     if "vs_id" not in columns:
-        conn.execute("ALTER TABLE acvp_vector_sets ADD COLUMN vs_id INTEGER")
+        conn.execute(
+            "ALTER TABLE acvp_vector_sets ADD COLUMN vs_id INTEGER"
+        )
 
     rows = conn.execute(
         """
@@ -760,22 +1197,27 @@ def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
         WHERE vs_id IS NULL
         """
     ).fetchall()
+
     for row in rows:
         prompt = json_loads(row["prompt_json"], default=None)
         extra = json_loads(row["extra_json"], default={}) or {}
         summary = _safe_prompt_summary(prompt)
         value = summary.get("vsId")
+
         if value is None:
             value = extra.get("vsId")
+
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise RuntimeError(
                 "Cannot migrate ACVP vector record without a valid numeric vsId: "
                 f"{row['vector_set_id']}"
             )
+
         conn.execute(
             "UPDATE acvp_vector_sets SET vs_id = ? WHERE vector_set_id = ?",
             (value, row["vector_set_id"]),
         )
+
     try:
         conn.execute(
             """
@@ -783,11 +1225,10 @@ def _migrate_public_vs_ids(conn: sqlite3.Connection) -> None:
             ON acvp_vector_sets(test_session_id, vs_id)
             """
         )
-    except sqlite3.IntegrityError as exc:
+    except psycopg.IntegrityError as exc:
         raise RuntimeError(
             "Cannot migrate duplicate numeric vsId values within an ACVP test session"
         ) from exc
-
 
 def _json_or_none(value: Any) -> Optional[str]:
     if value is None:
@@ -802,9 +1243,9 @@ def _extra_fields(record: Dict[str, Any], core_keys: set[str]) -> Dict[str, Any]
 class _ConnectionContext:
     def __init__(self, *, write: bool):
         self._write = write
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: Optional[_ConnectionAdapter] = None
 
-    def __enter__(self) -> sqlite3.Connection:
+    def __enter__(self) -> _ConnectionAdapter:
         self._conn = connect()
         return self._conn
 

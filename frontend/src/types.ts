@@ -38,7 +38,6 @@ export interface AcvpVectorSet {
 export type FipsVersionId = "FIPS203" | "FIPS204";
 export type AcvpRevision =
   | "FIPS203"
-  | "FIPS203-tr1"
   | "FIPS204"
   | "FIPS204-tr1";
 export type CapabilityMode = "keyGen" | "sigGen" | "sigVer" | "encapDecap";

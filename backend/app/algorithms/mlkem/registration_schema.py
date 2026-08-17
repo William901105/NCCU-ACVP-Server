@@ -17,12 +17,10 @@ from .common import (
 from .constants import (
     ALGORITHM,
     FUNCTIONS,
-    KEY_FORMATS,
     MODES,
     PARAMETER_SETS,
     PREREQUISITE_ALGORITHMS,
     REVISION,
-    REVISION_TR1,
 )
 from .normalize import normalize_acvp_container
 
@@ -30,17 +28,11 @@ from .normalize import normalize_acvp_container
 _COMMON_FIELDS = {"algorithm", "mode", "revision", "parameterSets", "prereqVals"}
 
 
-def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str, Any]:
+def validate_registration(payload: Any) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
     if obj.get("acvVersion") is None:
         obj.pop("acvVersion", None)
-    supports_key_formats = revision == REVISION_TR1
     allowed = set(_COMMON_FIELDS)
-    # keyFormats is contextual: admit it through the unknown-field gate so the
-    # conditional checks below can reject it with a precise
-    # invalid_conditional_field error (mode is keyGen / revision is FIPS203)
-    # rather than a generic unknown_field.
-    allowed.add("keyFormats")
     if obj.get("mode") == "encapDecap":
         allowed.add("functions")
     require_allowed_fields(obj, allowed, "$")
@@ -55,7 +47,7 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
     registration_revision = require_string(
         require_field(obj, "revision", "$"), "$.revision"
     )
-    if registration_revision != revision:
+    if registration_revision != REVISION:
         raise AcvpSchemaError(
             "unsupported_revision",
             f"Unsupported revision: {registration_revision}",
@@ -67,12 +59,6 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
         "$.mode",
         code="invalid_mode",
     )
-    if revision == REVISION_TR1 and mode != "encapDecap":
-        raise AcvpSchemaError(
-            "unsupported_mode_revision_combination",
-            f"FIPS203-tr1 is only defined for ML-KEM encapDecap, not {mode}",
-            "$.mode",
-        )
     obj["parameterSets"] = require_enum_array(
         require_field(obj, "parameterSets", "$"),
         PARAMETER_SETS,
@@ -87,7 +73,6 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
 
     if mode == "keyGen":
         require_absent(obj, "functions", "$", "mode is keyGen")
-        require_absent(obj, "keyFormats", "$", "mode is keyGen")
     else:
         obj["functions"] = require_enum_array(
             require_field(obj, "functions", "$"),
@@ -95,24 +80,4 @@ def validate_registration(payload: Any, *, revision: str = REVISION) -> Dict[str
             "$.functions",
             code="invalid_function",
         )
-        if not supports_key_formats:
-            require_absent(obj, "keyFormats", "$", "revision is FIPS203")
-        elif "decapsulation" in obj["functions"]:
-            # NIST ParameterValidator requires (and validates) keyFormats only
-            # when the Decapsulation function is registered.
-            obj["keyFormats"] = require_enum_array(
-                require_field(obj, "keyFormats", "$"),
-                KEY_FORMATS,
-                "$.keyFormats",
-                code="invalid_key_format",
-            )
-        elif "keyFormats" in obj:
-            # keyFormats is optional without decapsulation; still validate the
-            # values if the client chose to send them.
-            obj["keyFormats"] = require_enum_array(
-                obj["keyFormats"],
-                KEY_FORMATS,
-                "$.keyFormats",
-                code="invalid_key_format",
-            )
     return obj

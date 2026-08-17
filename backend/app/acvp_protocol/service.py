@@ -28,7 +28,7 @@ from ..models import (
     AcvpV1TestSessionCreateRequest,
     AcvpV1VectorSetGenerateRequest,
 )
-from ..storage.sqlite_store import (
+from ..storage.store import (
     ACVP_SKELETON_SESSION_STORE,
     ACVP_SKELETON_VECTOR_SET_STORE,
     create_acvp_request,

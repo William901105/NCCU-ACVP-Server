@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
-import sqlite3
+import psycopg
 from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.storage.sqlite_store import (
+from app.storage.store import (
     get_acvp_session,
     list_acvp_vector_sets_for_session,
     save_acvp_session,
@@ -123,7 +123,7 @@ def test_same_session_duplicate_vs_id_is_rejected(
     original = list_acvp_vector_sets_for_session(created["testSessionId"])[0]
     duplicate = deepcopy(original)
     duplicate["vectorSetId"] = "duplicate-internal-record"
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(psycopg.IntegrityError):
         save_acvp_vector_set(duplicate)
 
 

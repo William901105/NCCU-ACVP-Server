@@ -126,12 +126,11 @@ def test_algorithms_endpoint_uses_dependency_override_registry() -> None:
 def test_application_lifespan_builds_production_registry_once() -> None:
     registry = asyncio.run(_registry_from_lifespan())
 
-    assert len(registry) == 4
+    assert len(registry) == 3
     assert [item["providerId"] for item in registry.list_descriptors()] == [
         "nist-ml-dsa-fips204",
         "nist-ml-dsa-fips204-tr1",
         "nist-ml-kem-fips203",
-        "nist-ml-kem-fips203-tr1",
     ]
 
 

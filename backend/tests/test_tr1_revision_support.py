@@ -39,7 +39,7 @@ def _tr1_registration() -> dict:
     }
 
 
-def test_registry_exposes_only_the_seven_official_identities() -> None:
+def test_registry_exposes_only_the_six_supported_identities() -> None:
     assert set(build_algorithm_registry().identities()) == {
         AlgorithmIdentity("ML-DSA", "keyGen", "FIPS204"),
         AlgorithmIdentity("ML-DSA", "sigGen", "FIPS204"),
@@ -47,7 +47,6 @@ def test_registry_exposes_only_the_seven_official_identities() -> None:
         AlgorithmIdentity("ML-DSA", "sigGen", "FIPS204-tr1"),
         AlgorithmIdentity("ML-KEM", "keyGen", "FIPS203"),
         AlgorithmIdentity("ML-KEM", "encapDecap", "FIPS203"),
-        AlgorithmIdentity("ML-KEM", "encapDecap", "FIPS203-tr1"),
     }
 
 
@@ -56,7 +55,6 @@ def test_registry_exposes_only_the_seven_official_identities() -> None:
     [
         ("ML-DSA", "keyGen", "FIPS204-tr1"),
         ("ML-DSA", "sigVer", "FIPS204-tr1"),
-        ("ML-KEM", "keyGen", "FIPS203-tr1"),
     ],
 )
 def test_registry_rejects_undefined_mode_revision_combinations(
@@ -123,7 +121,6 @@ def test_official_mldsa_tr1_fixture_validates_seed_and_expanded_groups() -> None
     "runner,algorithm,mode,revision",
     [
         ("mldsa-native", "ML-DSA", "keyGen", "FIPS204-tr1"),
-        ("mlkem-native", "ML-KEM", "keyGen", "FIPS203-tr1"),
     ],
 )
 def test_iut_rejects_unknown_revision_identity_before_loading_crypto(

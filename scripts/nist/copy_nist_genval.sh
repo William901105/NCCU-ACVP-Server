@@ -46,7 +46,6 @@ mkdir -p "${TARGET_ROOT}/gen-val/json-files"
 for name in \
   ML-KEM-keyGen-FIPS203 \
   ML-KEM-encapDecap-FIPS203 \
-  ML-KEM-encapDecap-FIPS203-tr1 \
   ML-DSA-keyGen-FIPS204 \
   ML-DSA-sigGen-FIPS204 \
   ML-DSA-sigGen-FIPS204-tr1 \

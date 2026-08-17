@@ -18,6 +18,14 @@ import type {
 } from "./types";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+export const ACCESS_TOKEN_STORAGE_KEY = "nccu-acvp-access-token";
+
+export interface AccessToken {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresIn: number;
+  expiresAt: string;
+}
 
 interface RequestOptions extends RequestInit {
   preserveAcvpEnvelope?: boolean;
@@ -56,12 +64,19 @@ export async function requestMaybeJson<T>(
   options?: RequestOptions
 ): Promise<T | undefined> {
   const { preserveAcvpEnvelope = false, ...requestOptions } = options ?? {};
+  const headers = new Headers(requestOptions.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (path !== "/acvp/v1/accessTokens") {
+    const accessToken = getStoredAccessToken();
+    if (accessToken) {
+      headers.set("Authorization", `${accessToken.tokenType} ${accessToken.accessToken}`);
+    }
+  }
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(requestOptions.headers ?? {})
-    },
-    ...requestOptions
+    ...requestOptions,
+    headers
   });
   const payload = await parseResponsePayload(response);
   if (!response.ok) {
@@ -71,6 +86,52 @@ export async function requestMaybeJson<T>(
     return undefined;
   }
   return (preserveAcvpEnvelope ? payload : unwrapAcvpEnvelope(payload)) as T;
+}
+
+export async function requestNewAccessToken(): Promise<AccessToken> {
+  return request<AccessToken>("/acvp/v1/accessTokens", { method: "POST" });
+}
+
+export function getStoredAccessToken(): AccessToken | null {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+  const raw = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const token = JSON.parse(raw) as Partial<AccessToken>;
+    if (
+      typeof token.accessToken !== "string" ||
+      token.tokenType !== "Bearer" ||
+      typeof token.expiresIn !== "number" ||
+      typeof token.expiresAt !== "string"
+    ) {
+      clearStoredAccessToken();
+      return null;
+    }
+    if (Date.parse(token.expiresAt) <= Date.now()) {
+      clearStoredAccessToken();
+      return null;
+    }
+    return token as AccessToken;
+  } catch {
+    clearStoredAccessToken();
+    return null;
+  }
+}
+
+export function storeAccessToken(token: AccessToken): void {
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, JSON.stringify(token));
+  }
+}
+
+export function clearStoredAccessToken(): void {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  }
 }
 
 export async function listAcvpSessions(status?: string): Promise<AcvpSessionSummary[]> {

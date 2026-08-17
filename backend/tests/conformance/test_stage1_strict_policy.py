@@ -20,8 +20,9 @@ from app.acvp_protocol.routes import (
     get_acvp_v1_version,
     submit_acvp_v1_test_session_vector_set_results,
 )
+from app.access_tokens import issue_access_token
 from app.main import acvp_request_id_middleware, app
-from app.storage.sqlite_store import (
+from app.storage.store import (
     ACVP_SKELETON_SESSION_STORE,
     ACVP_SKELETON_VECTOR_SET_STORE,
     save_acvp_session,
@@ -48,6 +49,7 @@ def test_openapi_and_route_signatures_expose_no_profile_parameters() -> None:
 
 
 def test_forbidden_profile_query_is_rejected_by_central_middleware() -> None:
+    access_token = issue_access_token()["accessToken"].encode("ascii")
     for query, code in (
         (b"workflowProfile=local", "WORKFLOW_PROFILE_NOT_SUPPORTED"),
         (b"generationProfile=local-debug", "GENERATION_PROFILE_NOT_SUPPORTED"),
@@ -58,7 +60,7 @@ def test_forbidden_profile_query_is_rejected_by_central_middleware() -> None:
                 "method": "GET",
                 "path": "/acvp/v1/version",
                 "query_string": query,
-                "headers": [],
+                "headers": [(b"authorization", b"Bearer " + access_token)],
             }
         )
         response = asyncio.run(acvp_request_id_middleware(request, _unexpected_next))

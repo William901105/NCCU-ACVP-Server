@@ -20,7 +20,6 @@ SUPPORTED_MODES = {"keyGen", "encapDecap"}
 SUPPORTED_IDENTITIES = {
     ("ML-KEM", "keyGen", "FIPS203"),
     ("ML-KEM", "encapDecap", "FIPS203"),
-    ("ML-KEM", "encapDecap", "FIPS203-tr1"),
 }
 ENCAP_DECAP_FUNCTIONS = {
     "encapsulation",
@@ -319,15 +318,7 @@ def _generate_test_response(
 
         if function == "decapsulation":
             ciphertext = _hex_bytes(_required_lookup(test, group, "c"), "c")
-            # FIPS203-tr1 keyFormat "seed": the decapsulation key is carried as
-            # separate d(32) and z(32) fields; expand them to the dk first.
-            key_format = group.get("keyFormat", "expanded")
-            if key_format == "seed" or ("d" in test and "z" in test and "dk" not in test):
-                d = _hex_bytes(_required_lookup(test, group, "d"), "d", expected_len=32)
-                z = _hex_bytes(_required_lookup(test, group, "z"), "z", expected_len=32)
-                _ek, dk = ml_kem._keygen_internal(d, z)
-            else:
-                dk = _hex_bytes(_required_lookup(test, group, "dk"), "dk")
+            dk = _hex_bytes(_required_lookup(test, group, "dk"), "dk")
             shared_key = ml_kem._decaps_internal(dk, ciphertext)
             return {"tcId": tc_id, "k": shared_key.hex().upper()}
 
@@ -336,25 +327,7 @@ def _generate_test_response(
             return {"tcId": tc_id, "testPassed": _encapsulation_key_valid(ml_kem, ek)}
 
         if function == "decapsulationKeyCheck":
-            # The pinned NIST GenVal commit emits the decapsulationKeyCheck group with
-            # keyFormat "none", so the prompt carries NO decapsulation key (only
-            # tcId) -- see docs/mlkem-fips203-tr1-spec.md 3.3. This is a NIST-side
-            # defect (the keyCheck group is generated without a KeyFormat, unlike
-            # decapsulation VAL groups). With no key to inspect, a conformant IUT
-            # cannot compute testPassed, so emit only the tcId. If a future GenVal
-            # supplies the key (expanded dk, or seed d+z), check it as usual.
-            key_format = group.get("keyFormat", "expanded")
-            if "dk" in test:
-                dk = _hex_bytes(_required_lookup(test, group, "dk"), "dk")
-            elif key_format == "seed" or ("d" in test and "z" in test):
-                d = _hex_bytes(_required_lookup(test, group, "d"), "d", expected_len=32)
-                z = _hex_bytes(_required_lookup(test, group, "z"), "z", expected_len=32)
-                _ek, dk = ml_kem._keygen_internal(d, z)
-            else:
-                raise IutRunnerError(
-                    "decapsulationKeyCheck prompt contains no dk or d+z; "
-                    "the pinned NIST generator cannot produce a computable response"
-                )
+            dk = _hex_bytes(_required_lookup(test, group, "dk"), "dk")
             return {"tcId": tc_id, "testPassed": _decapsulation_key_valid(ml_kem, dk)}
 
     raise IutRunnerError(f"unsupported ML-KEM mode: {mode!r}")

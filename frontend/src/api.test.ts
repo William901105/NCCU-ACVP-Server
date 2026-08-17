@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  ACCESS_TOKEN_STORAGE_KEY,
   certifyAcvpSession,
   createAcvpSession,
   getAcvpExpectedResults,
@@ -9,6 +10,8 @@ import {
   getAcvpVectorSetPrompt,
   getAcvpVectorSetResults,
   listAcvpSessions,
+  requestNewAccessToken,
+  storeAccessToken,
   submitAcvpVectorSetResults
 } from "./api";
 import type { JsonValue } from "./types";
@@ -33,6 +36,7 @@ function requestBody(): unknown {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("localStorage", createLocalStorage());
   fetchMock.mockReset();
 });
 
@@ -41,6 +45,27 @@ afterEach(() => {
 });
 
 describe("ACVP API", () => {
+  it("gets a new token without authorization and injects it into later requests", async () => {
+    const token = {
+      accessToken: "test-token",
+      tokenType: "Bearer" as const,
+      expiresIn: 1800,
+      expiresAt: new Date(Date.now() + 1_800_000).toISOString()
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse([VERSION, token]))
+      .mockResolvedValueOnce(jsonResponse([VERSION, { testSessions: [] }]));
+
+    const issued = await requestNewAccessToken();
+    expect(new Headers(lastRequest().headers).get("Authorization")).toBeNull();
+
+    storeAccessToken(issued);
+    await listAcvpSessions();
+
+    expect(new Headers(lastRequest().headers).get("Authorization")).toBe("Bearer test-token");
+    expect(localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)).toContain("test-token");
+  });
+
   it("creates sessions with a canonical envelope rather than a bare body", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse([VERSION, { testSessionId: "session-1", status: "created", vectorSetIds: [] }])
@@ -169,3 +194,15 @@ describe("ACVP API", () => {
     });
   });
 });
+
+function createLocalStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() { return values.size; },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => { values.set(key, value); }
+  };
+}

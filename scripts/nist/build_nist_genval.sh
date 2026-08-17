@@ -18,7 +18,7 @@ if [[ ! -d "${VENDOR_ROOT}/_config" || ! -d "${VENDOR_ROOT}/gen-val" ]]; then
   exit 1
 fi
 
-if [[ ! -f "${SOURCE_MANIFEST}" ]] || ! rg -q "source git commit: ${PINNED_COMMIT}" "${SOURCE_MANIFEST}"; then
+if [[ ! -f "${SOURCE_MANIFEST}" ]] || ! grep -Fq "source git commit: ${PINNED_COMMIT}" "${SOURCE_MANIFEST}"; then
   echo "Vendored NIST source is not the required pinned commit ${PINNED_COMMIT}." >&2
   exit 1
 fi

@@ -48,7 +48,7 @@ export const FIPS_REGISTRY: FipsVersionConfig[] = [
       },
       {
         id: "encapDecap", label: "encapDecap", enabled: true,
-        revisions: ["FIPS203", "FIPS203-tr1"], defaultRevision: "FIPS203-tr1"
+        revisions: ["FIPS203"], defaultRevision: "FIPS203"
       }
     ],
     defaultModes: ["keyGen"],

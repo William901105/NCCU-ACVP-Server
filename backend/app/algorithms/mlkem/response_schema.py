@@ -47,23 +47,15 @@ _ENCAP_DECAP_SHAPES = {
 def validate_response(
     payload: Any,
     expected_mode: Optional[str] = None,
-    *,
-    revision: str = REVISION,
 ) -> Dict[str, Any]:
     obj = require_object(normalize_acvp_container(payload), "$")
-    mode = _validate_top_level(obj, expected_mode, revision)
-    if revision != REVISION and mode != "encapDecap":
-        raise AcvpSchemaError(
-            "unsupported_mode_revision_combination",
-            f"{revision} is only defined for ML-KEM encapDecap, not {mode}",
-            "$.mode",
-        )
+    mode = _validate_top_level(obj, expected_mode)
     _validate_groups(require_field(obj, "testGroups", "$"), mode)
     return obj
 
 
 def _validate_top_level(
-    obj: Dict[str, Any], expected_mode: Optional[str], revision: str
+    obj: Dict[str, Any], expected_mode: Optional[str]
 ) -> str:
     require_allowed_fields(obj, _TOP_LEVEL_FIELDS, "$")
     require_int(require_field(obj, "vsId", "$"), "$.vsId")
@@ -84,7 +76,7 @@ def _validate_top_level(
             )
     if "revision" in obj:
         response_revision = require_string(obj["revision"], "$.revision")
-        if response_revision != revision:
+        if response_revision != REVISION:
             raise AcvpSchemaError(
                 "unsupported_revision",
                 f"Unsupported revision: {response_revision}",

@@ -103,14 +103,6 @@ describe("registration builder", () => {
     const [registration] = buildFips203(["encapDecap"]);
     expect(registration.functions).toEqual(["encapsulation", "decapsulation"]);
     expect(registration.mode).toBe("encapDecap");
-    expect(registration.revision).toBe("FIPS203-tr1");
-    expect(registration.keyFormats).toEqual(["expanded", "seed"]);
-  });
-
-  it("keeps legacy ML-KEM encapDecap selectable", () => {
-    const [registration] = buildFips203(
-      ["encapDecap"], ["decapsulation"], ["ML-KEM-512"], "FIPS203"
-    );
     expect(registration.revision).toBe("FIPS203");
     expect(registration).not.toHaveProperty("keyFormats");
   });

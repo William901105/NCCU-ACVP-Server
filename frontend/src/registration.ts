@@ -54,9 +54,6 @@ export function buildRegistrationAlgorithms({
     if (config.id === "FIPS203") {
       if (mode === "encapDecap") {
         registration.functions = [...functions];
-        if (revision === "FIPS203-tr1") {
-          registration.keyFormats = ["expanded", "seed"];
-        }
       }
       return registration;
     }

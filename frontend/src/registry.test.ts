@@ -12,7 +12,7 @@ describe("FIPS registry", () => {
     expect(config.modes.map((mode) => mode.id)).toEqual(["keyGen", "encapDecap"]);
     expect(config.modes.find((mode) => mode.id === "keyGen")?.revisions).toEqual(["FIPS203"]);
     expect(config.modes.find((mode) => mode.id === "encapDecap")?.revisions).toEqual([
-      "FIPS203", "FIPS203-tr1"
+      "FIPS203"
     ]);
     expect(config.parameterSets).toEqual(["ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"]);
     expect(config.functions).toEqual(ML_KEM_FUNCTIONS);

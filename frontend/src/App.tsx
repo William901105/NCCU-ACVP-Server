@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   API_BASE_URL,
   ApiError,
+  clearStoredAccessToken,
   certifyAcvpSession,
   createAcvpSession,
   expectedDeniedView,
@@ -12,9 +13,13 @@ import {
   getAcvpSessionVectorSets,
   getAcvpVectorSetPrompt,
   getAcvpVectorSetResults,
+  getStoredAccessToken,
   listAcvpSessions,
+  requestNewAccessToken,
+  storeAccessToken,
   submitAcvpVectorSetResults
 } from "./api";
+import type { AccessToken } from "./api";
 import { downloadJson, isAcvpResourceUrl } from "./acvp";
 import JsonViewer from "./components/JsonViewer";
 import { buildRegistrationAlgorithms } from "./registration";
@@ -43,6 +48,10 @@ const DEFAULT_CAMPAIGN_SEED = "00112233445566778899AABBCCDDEEFF00112233445566778
 const HIDDEN_EXPECTED_MESSAGE = "Expected results are available only for sample vector sets.";
 const CERTIFICATION_DISCLAIMER =
   "This server is not connected to an external NIST/CAVP validation authority. The request resource does not represent an issued certificate.";
+const ACCESS_TOKEN_REQUIRED_MESSAGE =
+  "Access token required. Click Get New Access Token to continue.";
+const ACCESS_TOKEN_EXPIRED_MESSAGE =
+  "Your access token has expired or is invalid. Click Get New Access Token to continue.";
 
 interface Notice {
   text: string;
@@ -78,6 +87,7 @@ export default function App() {
   const [requestResource, setRequestResource] = useState<AcvpRequestResource | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [accessToken, setAccessToken] = useState<AccessToken | null>(() => getStoredAccessToken());
 
   const activeVectorSummary =
     vectorSets.find((vector) => vector.vsId === activeVectorSetId) ?? null;
@@ -101,8 +111,40 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (!accessToken) {
+      setNotice((current) =>
+        current?.text === ACCESS_TOKEN_EXPIRED_MESSAGE
+          ? current
+          : { text: ACCESS_TOKEN_REQUIRED_MESSAGE, tone: "info" }
+      );
+      return;
+    }
+    const expiresAt = Date.parse(accessToken.expiresAt);
+    const remaining = expiresAt - Date.now();
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      expireAccessToken();
+      return;
+    }
     refreshSessions().catch(showError);
-  }, []);
+    const expiryTimer = window.setTimeout(expireAccessToken, remaining);
+    return () => window.clearTimeout(expiryTimer);
+  }, [accessToken?.accessToken]);
+
+  function expireAccessToken() {
+    clearStoredAccessToken();
+    setAccessToken(null);
+    setNotice({ text: ACCESS_TOKEN_EXPIRED_MESSAGE, tone: "error" });
+  }
+
+  async function getNewAccessToken() {
+    await runBusy(async () => {
+      const issued = await requestNewAccessToken();
+      storeAccessToken(issued);
+      setAccessToken(issued);
+      const minutes = Math.ceil(issued.expiresIn / 60);
+      setNotice({ text: `A new access token is active for ${minutes} minutes.`, tone: "success" });
+    });
+  }
 
   async function refreshSessions() {
     const summaries = await listAcvpSessions();
@@ -346,6 +388,10 @@ export default function App() {
   }
 
   function showError(error: unknown) {
+    if (error instanceof ApiError && error.status === 401) {
+      expireAccessToken();
+      return;
+    }
     setNotice({ text: formatError(error), tone: "error" });
   }
 
@@ -360,7 +406,11 @@ export default function App() {
         <div className="status-cluster">
           <StatusChip label="Workflow: Strict" tone="strict" />
           <StatusChip label="Execution: NIST GenVal" tone="ready" />
-          <button type="button" onClick={() => refreshSessions().catch(showError)} disabled={isBusy}>
+          <StatusChip label={`Token: ${accessToken ? "active" : "required"}`} tone={accessToken ? "ready" : "warning"} />
+          <button type="button" onClick={getNewAccessToken} disabled={isBusy}>
+            Get New Access Token
+          </button>
+          <button type="button" onClick={() => refreshSessions().catch(showError)} disabled={isBusy || !accessToken}>
             Refresh
           </button>
           <button type="button" className="secondary" onClick={resetWorkspace} disabled={isBusy}>
@@ -449,7 +499,7 @@ export default function App() {
           {registrationError && registrationError !== seedError ? (
             <p className="field-error">{registrationError}</p>
           ) : null}
-          <button type="button" onClick={createSession} disabled={isBusy || Boolean(registrationError)}>
+          <button type="button" onClick={createSession} disabled={isBusy || !accessToken || Boolean(registrationError)}>
             Create test session
           </button>
         </section>

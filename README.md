@@ -53,6 +53,7 @@ are test inputs only and are not exposed by production endpoints.
 ## API Workflow
 
 ```text
+POST /acvp/v1/accessTokens
 POST /acvp/v1/testSessions
 GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}
 POST /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}/results
@@ -61,6 +62,14 @@ GET  /acvp/v1/testSessions/{sessionId}/results
 PUT  /acvp/v1/testSessions/{sessionId}
 GET  /acvp/v1/requests/{requestId}
 ```
+
+`POST /acvp/v1/accessTokens` requires no account registration or login. It
+returns an opaque Bearer token that expires after 30 minutes by default. All
+other `/acvp/v1` requests require `Authorization: Bearer <accessToken>`. The
+frontend's `Get New Access Token` button stores the token in browser
+`localStorage` and adds the header automatically. PostgreSQL stores only the
+token's SHA-256 digest and expiry metadata; missing, invalid, or expired tokens
+return HTTP 401.
 
 The explicit generation endpoint remains available for a session created with
 `autoGenerateVectorSets: false`:
@@ -104,12 +113,20 @@ expected results are returned only for sample vector sets.
 
 ## Development
 
+PostgreSQL is the only runtime database. Create separate application and test
+databases, then configure their URLs:
+
+```bash
+export DATABASE_URL='postgresql://acvp_app:<password>@127.0.0.1:5432/acvp'
+export ACVP_TEST_DATABASE_URL='postgresql://acvp_test_user:<password>@127.0.0.1:5432/acvp_test'
+```
+
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pytest
+pytest -q
 ```
 
 ```bash
@@ -134,10 +151,10 @@ lists both immutable descriptors, and the ML-KEM module provides strict
 registration, prompt, response, mapper, and NIST validation-normalization
 contracts.
 
-Frontend FIPS 203 workflows are not implemented. The ML-KEM IUT harness is now
-implemented in `IUT-tests/mlkem-native/`, verified against the repository NIST
-FIPS 203 fixtures. Mixed ML-DSA/ML-KEM sessions have not been formally supported
-or accepted.
+The frontend supports both FIPS 204 and FIPS 203 registration workflows. The
+ML-KEM IUT harness in `IUT-tests/mlkem-native/` is verified against the
+repository NIST FIPS 203 fixtures. Mixed ML-DSA/ML-KEM sessions have not been
+formally supported or accepted.
 
 Stage 1 details are recorded in
 [`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).

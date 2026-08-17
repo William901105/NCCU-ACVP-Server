@@ -11,10 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .acvp_core.bootstrap import build_algorithm_registry
+from .access_tokens import access_token_status
 from .acvp_protocol.errors import acvp_error_response
 from .acvp_protocol.request_context import get_or_create_request_id, reset_request_id, set_request_id
 from .acvp_protocol.routes import router as acvp_v1_router
-from .storage.sqlite_store import init_db
+from .storage.store import init_db
 
 
 @asynccontextmanager
@@ -37,19 +38,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(acvp_v1_router)
 
 
@@ -58,6 +46,9 @@ async def acvp_request_id_middleware(request: Request, call_next):
     token = set_request_id(request.headers.get("X-Request-ID"))
     try:
         if request.url.path.startswith("/acvp/v1"):
+            auth_error = _access_token_error(request)
+            if auth_error is not None:
+                return auth_error
             if "workflowProfile" in request.query_params:
                 return acvp_error_response(
                     status_code=400,
@@ -81,6 +72,68 @@ async def acvp_request_id_middleware(request: Request, call_next):
         return response
     finally:
         reset_request_id(token)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def _access_token_error(request: Request):
+    if not _access_token_required(request):
+        return None
+    authorization = request.headers.get("Authorization", "")
+    scheme, separator, token = authorization.partition(" ")
+    if not separator or scheme.lower() != "bearer" or not token.strip():
+        return _unauthorized_response(
+            request,
+            code="ACCESS_TOKEN_REQUIRED",
+            message="A Bearer access token is required.",
+        )
+    status = access_token_status(token.strip())
+    if status == "expired":
+        return _unauthorized_response(
+            request,
+            code="ACCESS_TOKEN_EXPIRED",
+            message="The access token has expired. Get a new access token and try again.",
+        )
+    if status != "valid":
+        return _unauthorized_response(
+            request,
+            code="INVALID_ACCESS_TOKEN",
+            message="The access token is invalid.",
+        )
+    return None
+
+
+def _access_token_required(request: Request) -> bool:
+    return (
+        request.method != "OPTIONS"
+        and request.url.path.startswith("/acvp/v1")
+        and request.url.path != "/acvp/v1/accessTokens"
+    )
+
+
+def _unauthorized_response(request: Request, *, code: str, message: str):
+    response = acvp_error_response(
+        status_code=401,
+        code=code,
+        message=message,
+        path=request.url.path,
+        request=request,
+        enveloped=True,
+    )
+    response.headers["WWW-Authenticate"] = "Bearer"
+    return response
 
 
 @app.exception_handler(RequestValidationError)

@@ -10,24 +10,18 @@ from .vector_schema import validate_vector_set
 
 def validate_mlkem_registration(
     payload: Any,
-    *,
-    revision: str = REVISION,
 ) -> Dict[str, Any]:
-    return validate_registration(payload, revision=revision)
+    return validate_registration(payload)
 
 
 def validate_mlkem_vector_set(
     payload: Any,
-    *,
-    revision: str = REVISION,
 ) -> Dict[str, Any]:
-    return validate_vector_set(payload, revision=revision)
+    return validate_vector_set(payload)
 
 
 def validate_mlkem_response(
     payload: Any,
     expected_mode: Optional[str] = None,
-    *,
-    revision: str = REVISION,
 ) -> Dict[str, Any]:
-    return validate_response(payload, expected_mode=expected_mode, revision=revision)
+    return validate_response(payload, expected_mode=expected_mode)

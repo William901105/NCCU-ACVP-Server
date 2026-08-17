@@ -18,8 +18,9 @@ from app.acvp_protocol.routes import (
     submit_acvp_v1_test_session_vector_set_results,
 )
 from app.genval import GenValConfigurationError
+from app.access_tokens import issue_access_token
 from app.main import app
-from app.storage.sqlite_store import ACVP_SKELETON_VECTOR_SET_STORE, save_acvp_vector_set
+from app.storage.store import ACVP_SKELETON_VECTOR_SET_STORE, save_acvp_vector_set
 
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "nist" / "mldsa"
@@ -177,6 +178,7 @@ def _body(value: Any) -> Dict[str, Any]:
 
 async def _asgi_request(path: str, *, method: str) -> Tuple[int, bytes]:
     messages = []
+    access_token = issue_access_token()["accessToken"].encode("ascii")
 
     async def receive() -> Dict[str, Any]:
         return {"type": "http.request", "body": b"", "more_body": False}
@@ -194,7 +196,7 @@ async def _asgi_request(path: str, *, method: str) -> Tuple[int, bytes]:
             "path": path,
             "raw_path": path.encode("utf-8"),
             "query_string": b"",
-            "headers": [],
+            "headers": [(b"authorization", b"Bearer " + access_token)],
             "client": ("test", 0),
             "server": ("test", 80),
         },

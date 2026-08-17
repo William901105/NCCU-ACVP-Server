@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.storage.sqlite_store import get_acvp_request
+from app.storage.store import get_acvp_request
 from helpers.mlkem_e2e import (
     body,
     error,

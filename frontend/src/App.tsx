@@ -3,11 +3,7 @@ import {
   API_BASE_URL,
   ApiError,
   clearStoredAccessToken,
-  certifyAcvpSession,
   createAcvpSession,
-  expectedDeniedView,
-  getAcvpExpectedResults,
-  getAcvpRequest,
   getAcvpSession,
   getAcvpSessionResults,
   getAcvpSessionVectorSets,
@@ -20,14 +16,13 @@ import {
   submitAcvpVectorSetResults
 } from "./api";
 import type { AccessToken } from "./api";
-import { downloadJson, isAcvpResourceUrl } from "./acvp";
+import { downloadJson } from "./acvp";
 import JsonViewer from "./components/JsonViewer";
 import { buildRegistrationAlgorithms } from "./registration";
 import { FIPS_REGISTRY, getFipsConfig } from "./registry";
 import type {
   AcvpParameterSet,
   AcvpRevision,
-  AcvpRequestResource,
   AcvpSessionDetail,
   AcvpSessionRegistration,
   AcvpSessionSummary,
@@ -38,16 +33,12 @@ import type {
   FipsVersionId,
   JsonValue,
   MlKemFunction,
-  NormalizedExpectedView,
   NormalizedSessionResultsView,
   NormalizedVectorSetResultView,
   NormalizedVectorSetView
 } from "./types";
 
 const DEFAULT_CAMPAIGN_SEED = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF";
-const HIDDEN_EXPECTED_MESSAGE = "Expected results are available only for sample vector sets.";
-const CERTIFICATION_DISCLAIMER =
-  "This server is not connected to an external NIST/CAVP validation authority. The request resource does not represent an issued certificate.";
 const ACCESS_TOKEN_REQUIRED_MESSAGE =
   "Access token required. Click Get New Access Token to continue.";
 const ACCESS_TOKEN_EXPIRED_MESSAGE =
@@ -61,7 +52,6 @@ interface Notice {
 export default function App() {
   const [activeFipsId, setActiveFipsId] = useState<FipsVersionId>("FIPS204");
   const config = useMemo(() => getFipsConfig(activeFipsId), [activeFipsId]);
-  const [isSample, setIsSample] = useState(false);
   const [selectedModes, setSelectedModes] = useState<CapabilityMode[]>(["keyGen"]);
   const [selectedRevisions, setSelectedRevisions] = useState<
     Partial<Record<CapabilityMode, AcvpRevision>>
@@ -77,21 +67,16 @@ export default function App() {
   const [vectorSets, setVectorSets] = useState<AcvpVectorSetSummary[]>([]);
   const [activeVectorSetId, setActiveVectorSetId] = useState<AcvpVectorSetId | null>(null);
   const [activeVectorSet, setActiveVectorSet] = useState<NormalizedVectorSetView | null>(null);
-  const [expectedView, setExpectedView] = useState<NormalizedExpectedView | null>(null);
   const [uploadedResponse, setUploadedResponse] = useState<JsonValue | null>(null);
   const [uploadedResponseName, setUploadedResponseName] = useState("");
   const [vectorResult, setVectorResult] = useState<NormalizedVectorSetResultView | null>(null);
   const [sessionResults, setSessionResults] = useState<NormalizedSessionResultsView | null>(null);
-  const [moduleUrl, setModuleUrl] = useState("");
-  const [oeUrl, setOeUrl] = useState("");
-  const [requestResource, setRequestResource] = useState<AcvpRequestResource | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [accessToken, setAccessToken] = useState<AccessToken | null>(() => getStoredAccessToken());
 
   const activeVectorSummary =
     vectorSets.find((vector) => vector.vsId === activeVectorSetId) ?? null;
-  const activeVectorIsSample = vectorIsSample(activeVectorSet, activeSession);
   const seedError = validateCampaignSeed(campaignSeed);
   const registrationError = validateRegistration(
     selectedModes,
@@ -100,16 +85,6 @@ export default function App() {
     config,
     seedError
   );
-  const moduleUrlValid = isAcvpResourceUrl(moduleUrl, "modules");
-  const oeUrlValid = isAcvpResourceUrl(oeUrl, "oes");
-  const canCertify = Boolean(
-    activeSession?.passed &&
-      activeSession.publishable &&
-      moduleUrlValid &&
-      oeUrlValid &&
-      !isBusy
-  );
-
   useEffect(() => {
     if (!accessToken) {
       setNotice((current) =>
@@ -186,7 +161,6 @@ export default function App() {
           revisions: selectedRevisions
         }),
         label,
-        isSample,
         autoGenerateVectorSets: true,
         testsPerGroup: 1
       };
@@ -210,55 +184,26 @@ export default function App() {
       setActiveSession(session);
       setVectorSets(vectors);
       clearVectorWorkspace();
-      setRequestResource(null);
       const vsId = vectors[0]?.vsId ?? null;
       if (vsId !== null) {
-        await openVectorSet(session.testSessionId, vsId, session);
+        await openVectorSet(session.testSessionId, vsId);
       }
     });
   }
 
   async function openVectorSet(
     sessionId: string,
-    vsId: AcvpVectorSetId,
-    session = activeSession
+    vsId: AcvpVectorSetId
   ) {
     setNotice(null);
     const vector = await getAcvpVectorSetPrompt(sessionId, vsId);
     setActiveVectorSetId(vsId);
     setActiveVectorSet(vector);
-    setExpectedView(null);
     setUploadedResponse(null);
     setUploadedResponseName("");
     setVectorResult(null);
     setSessionResults(null);
-    if (!vectorIsSample(vector, session)) {
-      setExpectedView(expectedDeniedView(HIDDEN_EXPECTED_MESSAGE));
-    }
     setVectorSets(await getAcvpSessionVectorSets(sessionId));
-  }
-
-  async function loadExpected() {
-    if (!activeSession || activeVectorSetId === null) {
-      return;
-    }
-    if (!activeVectorIsSample) {
-      setExpectedView(expectedDeniedView(HIDDEN_EXPECTED_MESSAGE));
-      return;
-    }
-    await runBusy(async () => {
-      try {
-        setExpectedView(
-          await getAcvpExpectedResults(activeSession.testSessionId, activeVectorSetId)
-        );
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 403) {
-          setExpectedView(expectedDeniedView(error.message));
-          return;
-        }
-        throw error;
-      }
-    });
   }
 
   async function loadResponse(file: File | null) {
@@ -315,35 +260,9 @@ export default function App() {
     setVectorSets(vectors);
   }
 
-  async function createCertificationRequest() {
-    if (!activeSession || !canCertify) {
-      return;
-    }
-    await runBusy(async () => {
-      const resource = await certifyAcvpSession(activeSession.testSessionId, {
-        moduleUrl,
-        oeUrl,
-        algorithmPrerequisites: []
-      });
-      setRequestResource(resource);
-      setNotice({ text: "Certification request resource created.", tone: "success" });
-    });
-  }
-
-  async function refreshCertificationRequest() {
-    if (!requestResource) {
-      return;
-    }
-    await runBusy(async () => {
-      setRequestResource(await getAcvpRequest(requestResource.url));
-      setNotice({ text: "Request resource status refreshed.", tone: "info" });
-    });
-  }
-
   function clearVectorWorkspace() {
     setActiveVectorSetId(null);
     setActiveVectorSet(null);
-    setExpectedView(null);
     setUploadedResponse(null);
     setUploadedResponseName("");
     setVectorResult(null);
@@ -355,21 +274,18 @@ export default function App() {
     setActiveSession(null);
     setVectorSets([]);
     clearVectorWorkspace();
-    setRequestResource(null);
   }
 
-  function downloadArtifact(kind: "prompt" | "expected" | "results" | "session-results") {
+  function downloadArtifact(kind: "prompt" | "results" | "session-results") {
     if (activeVectorSetId === null) {
       return;
     }
     const value =
       kind === "prompt"
         ? activeVectorSet?.raw
-        : kind === "expected"
-          ? expectedView?.raw
-          : kind === "results"
-            ? vectorResult?.raw
-            : sessionResults?.raw;
+        : kind === "results"
+          ? vectorResult?.raw
+          : sessionResults?.raw;
     if (value === undefined || value === null) {
       return;
     }
@@ -487,15 +403,6 @@ export default function App() {
             />
             {seedError ? <small className="field-error">{seedError}</small> : null}
           </label>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={isSample}
-              onChange={(event) => setIsSample(event.target.checked)}
-              disabled={isBusy}
-            />
-            <span>Sample session</span>
-          </label>
           {registrationError && registrationError !== seedError ? (
             <p className="field-error">{registrationError}</p>
           ) : null}
@@ -521,7 +428,7 @@ export default function App() {
                 <span>{session.label || session.testSessionId}</span>
                 <strong>{session.status}</strong>
                 <small>
-                  {session.algorithm ?? "Unknown algorithm"} · {session.vectorSetCount ?? session.vectorSetIds.length} vector(s) · {session.isSample ? "sample" : "non-sample"}
+                  {session.algorithm ?? "Unknown algorithm"} · {session.vectorSetCount ?? session.vectorSetIds.length} vector(s)
                 </small>
               </button>
             ))}
@@ -554,7 +461,6 @@ export default function App() {
               ["Mode", activeVectorSet?.prompt.mode ?? activeVectorSummary?.mode ?? "-"],
               ["vsId", activeVectorSetId === null ? "-" : String(activeVectorSetId)],
               ["Provider", activeVectorSummary?.provider ?? activeVectorSummary?.providerName ?? "nist-genval"],
-              ["Sample", activeVectorIsSample ? "yes" : "no"],
               ["Status", activeVectorSummary?.status ?? activeVectorSet?.status ?? "-"]
             ]}
           />
@@ -569,39 +475,6 @@ export default function App() {
             </button>
           </div>
           <JsonPane title="Prompt" value={activeVectorSet?.prompt ?? null} />
-        </section>
-
-        <section className="panel stack expected-panel">
-          <div className="panel-header">
-            <h2>Expected Results</h2>
-            <StatusChip
-              label={expectedView?.denied ? "hidden" : expectedView?.available ? "available" : "not loaded"}
-              tone={expectedView?.denied ? "warning" : "info"}
-            />
-          </div>
-          <p className="subtle">
-            {activeVectorIsSample
-              ? "Sample vector sets may retrieve expected results."
-              : HIDDEN_EXPECTED_MESSAGE}
-          </p>
-          <div className="actions">
-            <button
-              type="button"
-              onClick={loadExpected}
-              disabled={!activeVectorSet || !activeVectorIsSample || isBusy}
-            >
-              Load expected
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => downloadArtifact("expected")}
-              disabled={!activeVectorIsSample || !expectedView?.raw}
-            >
-              Download expected JSON
-            </button>
-          </div>
-          <JsonPane title="Expected" value={expectedView?.expectedResults ?? null} />
         </section>
 
         <section className="panel stack response-panel">
@@ -670,59 +543,6 @@ export default function App() {
           <JsonPane title="Test session results" value={sessionResults?.raw ?? null} />
         </section>
 
-        <section className="panel stack wide-panel certification-panel">
-          <div className="panel-header">
-            <h2>Certification Request</h2>
-            <StatusChip label={requestResource?.status ?? "not requested"} tone="info" />
-          </div>
-          <div className="certification-grid">
-            <label className={`field ${moduleUrl && !moduleUrlValid ? "invalid" : ""}`}>
-              <span>Module URL</span>
-              <input
-                value={moduleUrl}
-                placeholder="/acvp/v1/modules/1"
-                onChange={(event) => setModuleUrl(event.target.value)}
-                disabled={isBusy}
-                aria-invalid={Boolean(moduleUrl && !moduleUrlValid)}
-              />
-            </label>
-            <label className={`field ${oeUrl && !oeUrlValid ? "invalid" : ""}`}>
-              <span>OE URL</span>
-              <input
-                value={oeUrl}
-                placeholder="/acvp/v1/oes/1"
-                onChange={(event) => setOeUrl(event.target.value)}
-                disabled={isBusy}
-                aria-invalid={Boolean(oeUrl && !oeUrlValid)}
-              />
-            </label>
-          </div>
-          <div className="actions">
-            <button type="button" onClick={createCertificationRequest} disabled={!canCertify}>
-              Create certification request
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={refreshCertificationRequest}
-              disabled={!requestResource || isBusy}
-            >
-              Refresh request status
-            </button>
-          </div>
-          {requestResource ? (
-            <MetadataGrid
-              items={[
-                ["Request URL", requestResource.url],
-                ["Status", requestResource.status],
-                ["Message", requestResource.message ?? "-"],
-                ["Approved URL", requestResource.approvedUrl ?? "-"]
-              ]}
-            />
-          ) : null}
-          <p className="certification-disclaimer">{CERTIFICATION_DISCLAIMER}</p>
-          <JsonPane title="Request resource" value={requestResource?.raw ?? null} />
-        </section>
       </section>
     </main>
   );
@@ -903,17 +723,6 @@ function ResultList({
       ))}
     </div>
   );
-}
-
-function vectorIsSample(
-  vector: NormalizedVectorSetView | null,
-  session: AcvpSessionDetail | null
-): boolean {
-  return typeof vector?.prompt.isSample === "boolean"
-    ? vector.prompt.isSample
-    : typeof session?.isSample === "boolean"
-      ? session.isSample
-      : false;
 }
 
 function validateRegistration(

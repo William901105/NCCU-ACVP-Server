@@ -1,5 +1,8 @@
 # Stage 3: Algorithm-neutral ACVP Core
 
+> Historical Stage 3 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 ## Target Architecture
 
 Stage 3 separates the strict protocol runtime from concrete algorithm code:

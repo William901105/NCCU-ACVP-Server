@@ -1,5 +1,8 @@
 # Stage 4: ML-KEM GenVal Readiness
 
+> Historical Stage 4 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 Stage 4 confirms that the vendored NIST ACVP-Server GenVal engine can check
 and generate FIPS 203 / ML-KEM vector material. This is readiness evidence,
 not product support.

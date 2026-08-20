@@ -1,5 +1,9 @@
 # Strict Refactor Baseline
 
+> Historical Stage 0 snapshot. It records the repository before the strict
+> refactor and is not a current setup or API guide. See the
+> [documentation index](../README.md).
+
 This document records the Stage 0 baseline for NCCU ACVP Server before the
 strict-only refactor.
 

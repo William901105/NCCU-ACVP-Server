@@ -93,9 +93,15 @@ The NIST ACVP-Server source is vendored in `third_party/nist-acvp-server/`.
 Provenance is in `third_party/nist-acvp-server/NIST_SOURCE.md`.
 
 ```bash
-./scripts/nist/copy_nist_genval.sh
 ./scripts/nist/build_nist_genval.sh
 ./scripts/nist/start_orleans.sh
+```
+
+The NIST source is already vendored. Only maintainers refreshing that source
+from a local checkout at the exact pinned commit should run:
+
+```bash
+./scripts/nist/copy_nist_genval.sh /path/to/ACVP-Server
 ```
 
 Runtime settings:
@@ -143,28 +149,31 @@ cd backend
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Single-host Docker deployment
+
+The supported container layout uses three Docker Compose services: an Nginx
+frontend, an ACVP engine containing FastAPI plus the local NIST GenVal/Orleans
+runtime, and PostgreSQL 16. PostgreSQL data and NIST GenVal artifacts are kept
+in separate persistent volumes. Only the frontend port is published.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for build, startup, backup, database, and
+offline-delivery instructions. ML-KEM manual IUT acceptance is documented in
+[`docs/mlkem-iut-testing.md`](docs/mlkem-iut-testing.md).
+
 ## Scope
 
-The backend registry supports ML-DSA `keyGen`, `sigGen`, and `sigVer` for FIPS
-204 and ML-KEM `keyGen` and `encapDecap` for FIPS 203. The algorithms endpoint
-lists both immutable descriptors, and the ML-KEM module provides strict
-registration, prompt, response, mapper, and NIST validation-normalization
-contracts.
+The backend registry supports ML-DSA `keyGen`, `sigGen`, and `sigVer` for
+FIPS204, ML-DSA `sigGen` for FIPS204-tr1, and ML-KEM `keyGen` and `encapDecap`
+for FIPS203. The algorithms endpoint lists the immutable descriptors, and each
+module provides strict registration, prompt, response, mapper, and NIST
+validation-normalization contracts. ML-KEM FIPS203-tr1 is not currently
+registered.
 
 The frontend supports both FIPS 204 and FIPS 203 registration workflows. The
 ML-KEM IUT harness in `IUT-tests/mlkem-native/` is verified against the
 repository NIST FIPS 203 fixtures. Mixed ML-DSA/ML-KEM sessions have not been
 formally supported or accepted.
 
-Stage 1 details are recorded in
-[`docs/stages/stage1-strict-policy.md`](docs/stages/stage1-strict-policy.md).
-Stage 2 removal details are recorded in
-[`docs/stages/stage2-remove-local-runtime.md`](docs/stages/stage2-remove-local-runtime.md).
-Stage 3 architecture details are recorded in
-[`docs/stages/stage3-algorithm-neutral-core.md`](docs/stages/stage3-algorithm-neutral-core.md).
-Stage 4 ML-KEM GenVal readiness evidence is recorded in
-[`docs/stages/stage4-mlkem-genval-readiness.md`](docs/stages/stage4-mlkem-genval-readiness.md).
-Stage 5 ML-KEM module details are recorded in
-[`docs/stages/stage5-mlkem-algorithm-module.md`](docs/stages/stage5-mlkem-algorithm-module.md).
-Stage 7 Priority-0 protocol remediation is recorded in
-[`docs/stages/stage7-nist-priority0-interoperability.md`](docs/stages/stage7-nist-priority0-interoperability.md).
+Current guides and historical Stage/audit records are classified in
+[`docs/README.md`](docs/README.md). Historical records describe their pinned
+stage only and must not be used as current startup or API instructions.

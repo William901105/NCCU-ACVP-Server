@@ -1,5 +1,8 @@
 # Stage 7 - NIST Priority-0 Protocol Interoperability
 
+> Historical Stage 7 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 Stage 7 starts from merged strict commit
 `cc581adf4e0ea986ac92f5850afc8b75515b3339`. The tested implementation and
 acceptance-test freeze is `bbcddee7d798604c4229f960742e67d80157bb77`.

@@ -1,5 +1,8 @@
 # Stage 5: FIPS 203 ML-KEM Algorithm Module
 
+> Historical Stage 5 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 ## Goal And Base
 
 Stage 5 adds a production algorithm module for ML-KEM without changing the

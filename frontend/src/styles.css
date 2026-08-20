@@ -176,10 +176,6 @@ select {
   grid-column: span 2;
 }
 
-.certification-panel {
-  grid-column: 1 / -1;
-}
-
 .stack {
   display: flex;
   flex-direction: column;
@@ -242,7 +238,6 @@ select {
 
 .state-chip.online,
 .state-chip.strict,
-.state-chip.sample,
 .state-chip.passed,
 .state-chip.strict-payload {
   background: #dff5e8;
@@ -259,7 +254,6 @@ select {
 
 .state-chip.checking,
 .state-chip.local,
-.state-chip.non-sample,
 .state-chip.info,
 .state-chip.unreceived {
   background: #e6f0ff;
@@ -465,23 +459,6 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
-}
-
-.certification-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.certification-disclaimer {
-  margin: 0;
-  border-left: 4px solid #b86523;
-  background: #fff7e8;
-  color: #57320d;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.5;
 }
 
 .metadata-grid div,
@@ -700,7 +677,6 @@ select {
 
   .workflow-grid,
   .metadata-grid,
-  .certification-grid,
   .summary-strip,
   .result-row,
   .session-result-item {
@@ -708,10 +684,6 @@ select {
   }
 
   .wide-panel {
-    grid-column: auto;
-  }
-
-  .certification-panel {
     grid-column: auto;
   }
 

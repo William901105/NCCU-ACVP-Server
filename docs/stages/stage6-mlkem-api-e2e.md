@@ -1,5 +1,8 @@
 # Stage 6 ML-KEM API E2E and Live NIST GenVal Acceptance
 
+> Historical Stage 6 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 ## Scope and Provenance
 
 - Branch: `feature/stage6-mlkem-api-e2e`

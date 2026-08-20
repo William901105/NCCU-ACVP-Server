@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   ACCESS_TOKEN_STORAGE_KEY,
-  certifyAcvpSession,
   createAcvpSession,
-  getAcvpExpectedResults,
-  getAcvpRequest,
   getAcvpSessionResults,
   getAcvpVectorSetPrompt,
   getAcvpVectorSetResults,
@@ -108,49 +105,14 @@ describe("ACVP API", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("submits certification with PUT and a canonical envelope", async () => {
-    const resource = { url: "/acvp/v1/requests/5", status: "initial", message: "Pending" };
-    fetchMock.mockResolvedValueOnce(jsonResponse([VERSION, resource]));
-    const certification = {
-      moduleUrl: "/acvp/v1/modules/1",
-      oeUrl: "/acvp/v1/oes/1",
-      algorithmPrerequisites: []
-    };
-
-    const result = await certifyAcvpSession("session-1", certification);
-
-    expect(lastRequest().method).toBe("PUT");
-    expect(requestBody()).toEqual([VERSION, certification]);
-    expect(result.raw).toEqual([VERSION, resource]);
-  });
-
-  it("only polls strict relative numeric request URLs", async () => {
-    await expect(getAcvpRequest("https://example.test/acvp/v1/requests/5")).rejects.toMatchObject({
-      code: "INVALID_REQUEST_URL",
-      status: 400
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    const resource = { url: "/acvp/v1/requests/5", status: "processing" };
-    fetchMock.mockResolvedValueOnce(jsonResponse([VERSION, resource]));
-    await expect(getAcvpRequest(resource.url)).resolves.toMatchObject(resource);
-    expect(fetchMock.mock.calls[0][0]).toContain("/acvp/v1/requests/5");
-  });
-
-  it("preserves raw prompt and expected envelopes", async () => {
+  it("preserves the raw prompt envelope", async () => {
     const prompt = { vsId: 9, algorithm: "ML-KEM", mode: "keyGen", testGroups: [] };
-    const expected = { ...prompt, testGroups: [{ tgId: 1, tests: [] }] };
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse([VERSION, prompt]))
-      .mockResolvedValueOnce(jsonResponse([VERSION, expected]));
+    fetchMock.mockResolvedValueOnce(jsonResponse([VERSION, prompt]));
 
     const promptView = await getAcvpVectorSetPrompt("session-1", 9);
-    const expectedView = await getAcvpExpectedResults("session-1", 9);
 
     expect(promptView.raw).toEqual([VERSION, prompt]);
-    expect(expectedView.raw).toEqual([VERSION, expected]);
     expect(promptView.prompt).toEqual(prompt);
-    expect(expectedView.expectedResults).toEqual(expected);
   });
 
   it("preserves raw vector and session result envelopes", async () => {

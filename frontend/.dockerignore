@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+..env.local.swp
+*.log
+coverage/
+docs/
+evidence/
+*.tsbuildinfo
+pnpm-lock.yaml

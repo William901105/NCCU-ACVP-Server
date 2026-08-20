@@ -1,7 +1,7 @@
-# ACVP `tr1` support
+# ACVP ML-DSA `tr1` support
 
-Verified 2026-08-09 against the current NIST ACVP documentation and official
-ACVP-Server source. Here `tr1` means an ACVP **test revision**. It does not
+Verified 2026-08-20 against the current NIST ACVP documentation and the pinned
+official ACVP-Server source. Here `tr1` means an ACVP **test revision**. It does not
 change FIPS 204 and is unrelated to ML-DSA's internal `tr = H(pk)`
 value. NIST describes each revision as a capability an implementation **MAY**
 advertise, so legacy and tr1 registrations remain independently selectable.
@@ -39,6 +39,12 @@ the installed .NET 8 SDK.
 No other tr1 tuple is registered. In particular, ML-DSA keyGen/sigVer tr1 are
 rejected as unsupported mode/revision combinations.
 
+The official ML-KEM draft published 2026-08-14 also advertises
+`ML-KEM / encapDecap / FIPS203-tr1`, but this project intentionally does not
+register that identity. Its `keyFormats`, group `keyFormat`, and seed/expanded
+decapsulation contract require separate implementation and acceptance work;
+legacy `FIPS203` requests must not include those fields.
+
 ## Revision differences
 
 ML-DSA sigGen tr1 adds required registration `keyFormats` values `seed` and/or
@@ -52,9 +58,9 @@ intact.
 
 ## Text/source/fixture discrepancy
 
-The ML-DSA test-group table omits `keyFormat`, while its test-case text,
-   tr1 source, generated prompt, and fixture require it. The project requires
-   it for sigGen tr1 and rejects it for legacy.
+The ML-DSA test-group table omits `keyFormat`, while its test-case text, tr1
+source, generated prompt, and fixture require it. The project requires it for
+sigGen tr1 and rejects it for legacy.
 
 ## Trust boundary
 
@@ -80,8 +86,9 @@ bash scripts/nist/run_genval.sh validate \
   /tmp/case/internalProjection.json /tmp/case/response_pass_sigGen.json
 ```
 
-The IUT command does not take internal/expected paths. A response mutation is generated with `--variant
-both`; official validation must pass the normal response and fail the mutation.
+The IUT command does not take internal/expected paths. A response mutation is
+generated with `--variant both`; official validation must pass the normal
+response and fail the mutation.
 
 Acceptance executed 2026-08-09 with the binaries built from the pinned source:
 

@@ -30,7 +30,6 @@ export interface AcvpVectorSet {
   algorithm?: string;
   mode?: string;
   revision?: string;
-  isSample?: boolean;
   testGroups: AcvpTestGroup[];
   [key: string]: JsonValue | AcvpTestGroup[] | undefined;
 }
@@ -78,7 +77,6 @@ export interface FipsVersionConfig {
 export interface AcvpSessionRegistration {
   algorithms: JsonObject[];
   label?: string;
-  isSample?: boolean;
   autoGenerateVectorSets?: boolean;
   testsPerGroup?: number;
   campaignSeed?: string;
@@ -99,7 +97,6 @@ export interface AcvpSessionSummary {
   testCaseCount?: number;
   workflowPolicy?: "strict";
   executionBackend?: "nist-genval";
-  isSample?: boolean;
   passed?: boolean;
   publishable?: boolean;
   provider?: string | null;
@@ -122,7 +119,6 @@ export interface AcvpVectorSetSummary {
   mode?: string | null;
   algorithm?: string | null;
   revision?: string | null;
-  isSample?: boolean;
   testGroupCount?: number;
   testCaseCount?: number;
   provider?: string | null;
@@ -134,7 +130,6 @@ export interface AcvpVectorSetSummary {
 }
 
 export type AcvpVectorSetPayload = AcvpVectorSet;
-export type AcvpExpectedPayload = AcvpVectorSet;
 
 export interface AcvpStrictVectorSetResultTest {
   tgId?: number | string;
@@ -164,31 +159,6 @@ export interface AcvpStrictSessionResultItem {
   [key: string]: JsonValue | undefined;
 }
 
-export interface AcvpCertificationPrerequisite {
-  algorithm: string;
-  validationId: string;
-}
-
-export interface AcvpCertificationAlgorithmPrerequisites {
-  algorithm: string;
-  mode?: string;
-  prerequisites: AcvpCertificationPrerequisite[];
-}
-
-export interface AcvpCertificationRequest {
-  moduleUrl: string;
-  oeUrl: string;
-  algorithmPrerequisites: AcvpCertificationAlgorithmPrerequisites[];
-}
-
-export interface AcvpRequestResource {
-  url: string;
-  status: "initial" | "processing" | "approved" | "rejected" | string;
-  message?: string;
-  approvedUrl?: string;
-  raw?: unknown;
-}
-
 export type NormalizedSourceShape = "strict-payload";
 
 export interface NormalizedVectorSetView {
@@ -198,15 +168,6 @@ export interface NormalizedVectorSetView {
   prompt: AcvpVectorSetPayload;
   raw: unknown;
   sourceShape: NormalizedSourceShape;
-}
-
-export interface NormalizedExpectedView {
-  available: boolean;
-  denied: boolean;
-  reason?: string;
-  expectedResults?: AcvpExpectedPayload;
-  raw?: unknown;
-  sourceShape?: NormalizedSourceShape;
 }
 
 export interface NormalizedVectorSetResultView {

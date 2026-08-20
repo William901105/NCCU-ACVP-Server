@@ -1,0 +1,127 @@
+name: nccu-acvp
+
+services:
+  postgres:
+    image: postgres:16.14-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-acvp}
+      POSTGRES_USER: ${POSTGRES_USER:-acvp_app}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+    networks:
+      - acvp-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  acvp-engine:
+    image: nccu-acvp-engine:${ACVP_VERSION:-dev}
+    build:
+      context: .
+      dockerfile: docker/acvp-engine.Dockerfile
+      args:
+        APP_VERSION: ${ACVP_VERSION:-dev}
+        VCS_REF: ${ACVP_VCS_REF:-unknown}
+        BUILD_DATE: ${ACVP_BUILD_DATE:-unknown}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-acvp}
+      POSTGRES_USER: ${POSTGRES_USER:-acvp_app}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      ACVP_GENVAL_RUNNER_DLL: /opt/acvp/nist/genval-runner/NIST.CVP.ACVTS.Generation.GenValApp.dll
+      ACVP_GENVAL_ARTIFACT_ROOT: /var/lib/acvp/artifacts
+      ACVP_GENVAL_TIMEOUT_SECONDS: ${ACVP_GENVAL_TIMEOUT_SECONDS:-300}
+      ACVP_ACCESS_TOKEN_TTL_SECONDS: ${ACVP_ACCESS_TOKEN_TTL_SECONDS:-1800}
+    secrets:
+      - postgres_password
+    volumes:
+      - genval-artifacts:/var/lib/acvp/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "python", "/opt/acvp/bin/engine-healthcheck.py"]
+      interval: 15s
+      timeout: 8s
+      start_period: 90s
+      retries: 5
+    stop_grace_period: 60s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - acvp-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  frontend:
+    image: nccu-acvp-frontend:${ACVP_VERSION:-dev}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+        APP_VERSION: ${ACVP_VERSION:-dev}
+        VCS_REF: ${ACVP_VCS_REF:-unknown}
+        BUILD_DATE: ${ACVP_BUILD_DATE:-unknown}
+    restart: unless-stopped
+    depends_on:
+      acvp-engine:
+        condition: service_healthy
+        restart: true
+    ports:
+      - "${ACVP_BIND_ADDRESS:-127.0.0.1}:${ACVP_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - acvp-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  acvp-internal:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  genval-artifacts:
+
+secrets:
+  postgres_password:
+    file: ${POSTGRES_PASSWORD_FILE:-./secrets/postgres_password.txt}

@@ -27,5 +27,9 @@ frontend/.env.local
 frontend/..env.local.swp
 frontend/.env.local.save
 
+# Docker deployment secrets
+secrets/*
+!secrets/.gitkeep
+
 # Native build artifacts
 backend/native/mldsa_oracle/bin/

@@ -1,5 +1,8 @@
 # Stage 1: Strict ACVP Policy
 
+> Historical Stage 1 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 ## Scope
 
 Stage 1 converts `/acvp/v1` to one fixed policy:

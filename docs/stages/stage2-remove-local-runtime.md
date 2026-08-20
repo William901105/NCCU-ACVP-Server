@@ -1,5 +1,8 @@
 # Stage 2: Remove Local Runtime
 
+> Historical Stage 2 implementation record. It is not a current setup or API
+> guide. See the [documentation index](../README.md).
+
 ## Scope
 
 Stage 2 removes the local ML-DSA execution path from production code. The

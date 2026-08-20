@@ -24,15 +24,6 @@ export function unwrapAcvpEnvelope<T>(payload: unknown): T {
   return (isAcvpEnvelope(payload) ? payload[1] : payload) as T;
 }
 
-export function isAcvpResourceUrl(value: string, collection: "modules" | "oes"): boolean {
-  const prefix = `/acvp/v1/${collection}/`;
-  return value.startsWith(prefix) && new RegExp(`^${prefix}[^/?#]+$`).test(value);
-}
-
-export function isAcvpRequestUrl(value: string): boolean {
-  return /^\/acvp\/v1\/requests\/\d+$/.test(value);
-}
-
 export function downloadJson(value: unknown, filename: string): void {
   const safeFilename = sanitizeFilename(filename);
   const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {

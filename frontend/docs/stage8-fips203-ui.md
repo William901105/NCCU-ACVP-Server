@@ -1,5 +1,10 @@
 # Stage 8 FIPS 203 Frontend Enablement
 
+> Historical Stage 8 record. The current strict frontend no longer exposes
+> sample-session controls, expected-results views/downloads, or certification
+> request fields. The body below describes the Stage 8 freeze, not the current
+> UI. See the [documentation index](../../docs/README.md).
+
 ## Scope and baseline
 
 - Base `strict` SHA: `d6e27208d9fb40553abe432d5dfb421032a07c70`.
@@ -58,7 +63,7 @@ pytest
 
 Results are recorded in `frontend/evidence/stage8/test-execution.txt`. The backend test runner was loaded from a temporary Python 3.8-compatible dependency directory because `pytest` was not installed on the system PATH; this did not modify the repository.
 
-## Known limitations
+## Stage 8 limitations
 
 - No real ML-KEM IUT implementation.
 - No frontend generation of cryptographic responses.

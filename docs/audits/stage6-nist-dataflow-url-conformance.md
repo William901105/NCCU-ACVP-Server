@@ -1,5 +1,9 @@
 # Stage 6 NIST ACVP Data-flow and URL Conformance Audit
 
+> Historical Stage 6 audit. Findings and repository paths are point-in-time
+> evidence, not the current conformance status. See the
+> [documentation index](../README.md).
+
 ## 1. Executive Summary
 
 | Question | Result |

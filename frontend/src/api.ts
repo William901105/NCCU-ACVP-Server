@@ -1,7 +1,5 @@
-import { acvpEnvelope, isAcvpEnvelope, isAcvpRequestUrl, unwrapAcvpEnvelope } from "./acvp";
+import { acvpEnvelope, isAcvpEnvelope, unwrapAcvpEnvelope } from "./acvp";
 import type {
-  AcvpCertificationRequest,
-  AcvpRequestResource,
   AcvpSessionDetail,
   AcvpSessionRegistration,
   AcvpSessionSummary,
@@ -11,7 +9,6 @@ import type {
   AcvpVectorSetPayload,
   AcvpVectorSetSummary,
   JsonValue,
-  NormalizedExpectedView,
   NormalizedSessionResultsView,
   NormalizedVectorSetResultView,
   NormalizedVectorSetView
@@ -173,16 +170,6 @@ export async function getAcvpVectorSetPrompt(
   return normalizeVectorSetPrompt(payload, sessionId, vsId);
 }
 
-export async function getAcvpExpectedResults(
-  sessionId: string,
-  vsId: AcvpVectorSetId
-): Promise<NormalizedExpectedView> {
-  const payload = await requestJson<unknown>(`${vectorPath(sessionId, vsId)}/expected`, {
-    preserveAcvpEnvelope: true
-  });
-  return normalizeExpectedResults(payload);
-}
-
 export async function submitAcvpVectorSetResults(
   sessionId: string,
   vsId: AcvpVectorSetId,
@@ -218,39 +205,6 @@ export async function getAcvpSessionResults(
     { preserveAcvpEnvelope: true }
   );
   return normalizeSessionResults(payload);
-}
-
-export async function certifyAcvpSession(
-  sessionId: string,
-  certification: AcvpCertificationRequest
-): Promise<AcvpRequestResource> {
-  const payload = await requestJson<unknown>(
-    `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(acvpEnvelope(certification)),
-      preserveAcvpEnvelope: true
-    }
-  );
-  return normalizeRequestResource(payload);
-}
-
-export async function getAcvpRequest(requestUrl: string): Promise<AcvpRequestResource> {
-  if (!isAcvpRequestUrl(requestUrl)) {
-    throw new ApiError(
-      "Request resource URL must match /acvp/v1/requests/{numericId}.",
-      400,
-      undefined,
-      "INVALID_REQUEST_URL",
-      requestUrl
-    );
-  }
-  const payload = await requestJson<unknown>(requestUrl, { preserveAcvpEnvelope: true });
-  return normalizeRequestResource(payload);
-}
-
-export function expectedDeniedView(reason: string): NormalizedExpectedView {
-  return { available: false, denied: true, reason };
 }
 
 async function parseResponsePayload(response: Response): Promise<unknown | undefined> {
@@ -342,25 +296,6 @@ function normalizeVectorSetPrompt(
   };
 }
 
-function normalizeExpectedResults(payload: unknown): NormalizedExpectedView {
-  const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (isVectorSetPayload(body)) {
-    return {
-      available: true,
-      denied: false,
-      expectedResults: body,
-      raw: payload,
-      sourceShape: "strict-payload"
-    };
-  }
-  return {
-    available: false,
-    denied: false,
-    reason: "Expected results response did not contain a vector set payload.",
-    raw: payload
-  };
-}
-
 function normalizeVectorSetResults(payload: unknown): NormalizedVectorSetResultView {
   const body = unwrapAcvpEnvelope<unknown>(payload);
   const strictResults = extractStrictVectorSetResults(body);
@@ -387,20 +322,6 @@ function normalizeSessionResults(payload: unknown): NormalizedSessionResultsView
     results: body.results,
     raw: payload,
     sourceShape: "strict-payload"
-  };
-}
-
-function normalizeRequestResource(payload: unknown): AcvpRequestResource {
-  const body = unwrapAcvpEnvelope<unknown>(payload);
-  if (!isRecord(body) || typeof body.url !== "string" || typeof body.status !== "string") {
-    throw new Error("ACVP request response did not contain a request resource.");
-  }
-  return {
-    url: body.url,
-    status: body.status,
-    message: stringValue(body.message),
-    approvedUrl: stringValue(body.approvedUrl),
-    raw: payload
   };
 }
 

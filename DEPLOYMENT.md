@@ -84,17 +84,6 @@ docker compose logs --tail 200 frontend acvp-engine postgres
 ./scripts/docker/smoke-test.sh
 ```
 
-開發/驗收環境若已提供 ML-DSA IUT library（ML-KEM library 已 vendored），可從
-公開 frontend URL 跑五種模式的真實正向、負向與回復正向驗證：
-
-```bash
-python3 ./scripts/docker/full-stack-test.py --output /tmp/acvp-docker-e2e.json
-```
-
-此腳本是驗收工具，不是三個 production services 的一部分。
-
-ML-KEM 的逐步網頁與 IUT 手動驗證方式見
-[`docs/mlkem-iut-testing.md`](docs/mlkem-iut-testing.md)。
 
 ## 停止與重新啟動
 

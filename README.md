@@ -61,6 +61,7 @@ GET  /acvp/v1/testSessions/{sessionId}/vectorSets/{vsId}/results
 GET  /acvp/v1/testSessions/{sessionId}/results
 PUT  /acvp/v1/testSessions/{sessionId}
 GET  /acvp/v1/requests/{requestId}
+GET  /acvp/v1/testSessions/{sessionId}/reports/pdf
 ```
 
 `POST /acvp/v1/accessTokens` requires no account registration or login. It
@@ -86,6 +87,14 @@ request resource in `initial` status because this server is not connected to an
 external validation authority. It does not issue a certificate or validation
 ID. Obsolete workflow-selection or generation-selection query parameters
 return HTTP 400.
+
+After every vector set in a session has completed validation, the authenticated
+PDF report endpoint returns one downloadable test-session summary. It contains
+the session metadata, certification request state when present, algorithm and
+vector-set metadata, and pass/fail counts. Raw prompt, IUT response, validation,
+internal projection, and expected-results JSON are not rendered in the PDF.
+The report is local validation evidence and is explicitly not a NIST/CAVP
+certificate.
 
 ## NIST GenVal Adapter
 

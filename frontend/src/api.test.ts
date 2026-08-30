@@ -3,6 +3,7 @@ import {
   ApiError,
   ACCESS_TOKEN_STORAGE_KEY,
   createAcvpSession,
+  downloadAcvpSessionReportPdf,
   getAcvpSessionResults,
   getAcvpVectorSetPrompt,
   getAcvpVectorSetResults,
@@ -127,6 +128,37 @@ describe("ACVP API", () => {
 
     expect(vectorView.raw).toEqual([VERSION, vectorResults]);
     expect(sessionView.raw).toEqual([VERSION, sessionResults]);
+  });
+
+  it("downloads the authenticated session report as a PDF", async () => {
+    storeAccessToken({
+      accessToken: "report-token",
+      tokenType: "Bearer",
+      expiresIn: 1800,
+      expiresAt: new Date(Date.now() + 1_800_000).toISOString()
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(new Blob(["%PDF-1.4 report"], { type: "application/pdf" }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'attachment; filename="validation-report.pdf"'
+        }
+      })
+    );
+
+    const file = await downloadAcvpSessionReportPdf("session-1");
+
+    expect(fetchMock.mock.calls[0][0]).toContain(
+      "/acvp/v1/testSessions/session-1/reports/pdf"
+    );
+    expect(new Headers(lastRequest().headers).get("Authorization")).toBe(
+      "Bearer report-token"
+    );
+    expect(new Headers(lastRequest().headers).get("Accept")).toBe("application/pdf");
+    expect(file.filename).toBe("validation-report.pdf");
+    expect(file.blob.type).toBe("application/pdf");
+    expect(file.blob.size).toBeGreaterThan(0);
   });
 
   it("parses structured canonical ACVP errors", async () => {

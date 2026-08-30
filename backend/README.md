@@ -11,8 +11,11 @@ The production HTTP surface is:
 - `/acvp/v1/accessTokens`
 - authenticated `/acvp/v1/*` protocol resources
 
-The removed local oracle, import, sample-data, report and demo endpoint families
-are not part of the application.
+The removed local oracle, import, sample-data, legacy `/api/report/*`, and demo
+endpoint families are not part of the application. Completed strict ACVP test
+sessions expose their authenticated validation evidence at
+`/acvp/v1/testSessions/{sessionId}/reports` and as a downloadable PDF at the
+corresponding `/reports/pdf` resource.
 
 ## Recommended startup
 

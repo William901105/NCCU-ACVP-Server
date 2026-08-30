@@ -30,8 +30,10 @@ from .service import (
     certify_test_session,
     create_test_session,
     delete_test_session,
+    download_test_session_report_pdf,
     request_nist_vector_sets_for_session,
     get_test_session,
+    get_test_session_report,
     get_test_session_results,
     get_test_session_vector_sets,
     get_request_resource,
@@ -39,6 +41,7 @@ from .service import (
     get_vector_set_expected,
     get_vector_set_expected_results,
     get_vector_set_prompt,
+    get_vector_set_report,
     get_vector_set_results,
     legacy_python_session_response,
     legacy_vector_set_canonical_path,
@@ -228,6 +231,27 @@ def get_acvp_v1_test_session_vector_set_results(
     return _canonical_response(
         get_vector_set_results(sessionId, vsId, show_expected=showExpected)
     )
+
+
+@router.get("/testSessions/{sessionId}/vectorSets/{vsId:int}/reports")
+def get_acvp_v1_test_session_vector_set_report(
+    sessionId: str,
+    vsId: int,
+    reportId: Optional[str] = None,
+) -> Any:
+    return _canonical_response(
+        get_vector_set_report(sessionId, vsId, report_id=reportId)
+    )
+
+
+@router.get("/testSessions/{sessionId}/reports/pdf")
+def download_acvp_v1_test_session_report_pdf(sessionId: str) -> Any:
+    return _canonical_response(download_test_session_report_pdf(sessionId))
+
+
+@router.get("/testSessions/{sessionId}/reports")
+def get_acvp_v1_test_session_report(sessionId: str) -> Any:
+    return _canonical_response(get_test_session_report(sessionId))
 
 
 @router.get("/testSessions/{sessionId}/results")

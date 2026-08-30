@@ -207,6 +207,31 @@ export async function getAcvpSessionResults(
   return normalizeSessionResults(payload);
 }
 
+export async function downloadAcvpSessionReportPdf(
+  sessionId: string
+): Promise<{ blob: Blob; filename: string }> {
+  const path = `/acvp/v1/testSessions/${encodeURIComponent(sessionId)}/reports/pdf`;
+  const headers = new Headers({ Accept: "application/pdf" });
+  const accessToken = getStoredAccessToken();
+  if (accessToken) {
+    headers.set("Authorization", `${accessToken.tokenType} ${accessToken.accessToken}`);
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  if (!response.ok) {
+    throw buildApiError(response, await parseResponsePayload(response));
+  }
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/pdf")) {
+    throw new Error("Report download did not return a PDF file.");
+  }
+  return {
+    blob: await response.blob(),
+    filename:
+      attachmentFilename(response.headers.get("Content-Disposition")) ??
+      `NCCU-ACVP-${sessionId}-validation-report.pdf`
+  };
+}
+
 async function parseResponsePayload(response: Response): Promise<unknown | undefined> {
   if (response.status === 204) {
     return undefined;
@@ -364,4 +389,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function attachmentFilename(contentDisposition: string | null): string | undefined {
+  if (!contentDisposition) {
+    return undefined;
+  }
+  const match = /filename="?([^";]+)"?/i.exec(contentDisposition);
+  return match?.[1];
 }

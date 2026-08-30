@@ -90,6 +90,11 @@ export interface AcvpSessionSummary {
   vsIds?: AcvpVectorSetId[];
   vectorSetUrls: string[];
   vectorSetCount: number;
+  downloadedVectorSetCount?: number;
+  submittedVectorSetCount?: number;
+  validatedVectorSetCount?: number;
+  failedVectorSetCount?: number;
+  pendingVectorSetCount?: number;
   mode?: string | null;
   algorithm?: string | null;
   revision?: string | null;

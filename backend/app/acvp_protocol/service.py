@@ -8,7 +8,7 @@ import re
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ..acvp_core.algorithm_identity import AlgorithmIdentity
 from ..acvp_core.algorithm_module import AcvpAlgorithmModule, normalize_module_validation
@@ -47,6 +47,15 @@ from ..storage.store import (
 from .disposition import build_acvp_vector_set_results
 from .errors import acvp_error_response
 from .paging import apply_paging, build_paged_body
+from .report_artifact import (
+    REPORT_ARTIFACT_TYPE,
+    REPORT_DISCLAIMER,
+    REPORT_SCHEMA_VERSION,
+    append_report_artifact,
+    latest_report_artifact,
+    sha256_json,
+)
+from .report_pdf import render_validation_report_pdf
 from .state_machine import (
     StateTransitionError,
     TestSessionStatus,
@@ -1213,7 +1222,6 @@ def submit_vector_set_results(
         vector_set["validatingAt"] = vector_set["updatedAt"]
         vector_set["response"] = response
         vector_set["validationResult"] = validation_result
-        vector_set["report"] = None
         vector_set["showExpected"] = False
         _transition_vector_if_needed(
             vector_set,
@@ -1242,9 +1250,13 @@ def submit_vector_set_results(
         show_expected=False,
     )
     vector_set["acvpResults"] = acvp_results
+    vector_set["report"] = append_report_artifact(
+        vector_set=vector_set,
+        validation_result=validation_result,
+        acvp_results=acvp_results,
+        response=response,
+    )
     save_acvp_vector_set(vector_set)
-
-    from fastapi import Response
 
     return Response(status_code=204)
 
@@ -1286,6 +1298,159 @@ def get_vector_set_results(
         response=vector_set.get("response"),
         expected_results=vector_set.get("expectedResults"),
         show_expected=False,
+    )
+
+
+def get_vector_set_report(
+    session_id: str,
+    vector_set_id: Any,
+    *,
+    report_id: Optional[str] = None,
+) -> Any:
+    vector_set = get_vector_set_for_session_or_404(session_id, vector_set_id)
+    if isinstance(vector_set, JSONResponse):
+        return vector_set
+
+    path = f"{_nested_vector_set_path(session_id, int(vector_set['vsId']))}/reports"
+    report_store = vector_set.get("report")
+    artifacts = (
+        [
+            item
+            for item in report_store.get("artifacts", [])
+            if isinstance(item, dict)
+        ]
+        if isinstance(report_store, dict)
+        else []
+    )
+    if not artifacts:
+        return acvp_error(
+            409,
+            "REPORT_NOT_AVAILABLE",
+            "No validation report artifact is available for this vector set.",
+            path,
+        )
+
+    if report_id is None:
+        artifact = latest_report_artifact(vector_set) or artifacts[-1]
+    else:
+        artifact = next(
+            (item for item in artifacts if item.get("reportId") == report_id),
+            None,
+        )
+        if artifact is None:
+            return acvp_error(
+                404,
+                "UNKNOWN_REPORT_ARTIFACT",
+                "Unknown report artifact for this vector set.",
+                f"{path}/{report_id}",
+            )
+
+    return {
+        "testSessionId": session_id,
+        "vsId": int(vector_set["vsId"]),
+        "latestReportId": report_store.get("latestReportId"),
+        "reportCount": len(artifacts),
+        "report": artifact,
+    }
+
+
+def get_test_session_report(session_id: str) -> Any:
+    session = _get_session(session_id)
+    if isinstance(session, JSONResponse):
+        return session
+    path = f"/acvp/v1/testSessions/{session_id}/reports"
+    legacy = _reject_legacy_local_session(session, path)
+    if isinstance(legacy, JSONResponse):
+        return legacy
+
+    summary = _session_result_summary(session)
+    if summary["totalVectorSets"] == 0 or summary["submittedVectorSets"] == 0:
+        return acvp_error(
+            409,
+            "REPORT_NOT_AVAILABLE",
+            "A validation report is available after vector set results are submitted.",
+            path,
+        )
+    if summary["pendingVectorSets"] > 0:
+        return acvp_error(
+            409,
+            "REPORT_INCOMPLETE",
+            "All vector set validations must complete before the session report is available.",
+            path,
+        )
+
+    vector_reports = []
+    for vector_set in _session_vector_sets(session):
+        validation_result = vector_set.get("validationResult")
+        response = vector_set.get("response")
+        if not isinstance(validation_result, dict) or not isinstance(response, dict):
+            return acvp_error(
+                409,
+                "REPORT_INCOMPLETE",
+                "A completed vector set is missing persisted validation evidence.",
+                path,
+            )
+        public_results = build_acvp_vector_set_results(
+            vector_set=vector_set,
+            validation_result=validation_result,
+            response=response,
+            expected_results=vector_set.get("expectedResults"),
+            show_expected=False,
+        )
+        vector_reports.append(
+            {
+                "metadata": _vector_set_summary(vector_set),
+                "prompt": vector_set.get("prompt"),
+                "iutResponse": response,
+                "validationResults": public_results,
+                "validationArtifact": latest_report_artifact(vector_set),
+            }
+        )
+
+    certification_request = get_acvp_request_for_session(session_id)
+    certification = None
+    if certification_request is not None:
+        certification = {
+            "submittedAt": session.get("certificationSubmittedAt"),
+            "request": _public_request_resource(certification_request),
+            "requestPayload": certification_request.get("certification"),
+        }
+
+    generated_at = _timestamp()
+    report: Dict[str, Any] = {
+        "schemaVersion": REPORT_SCHEMA_VERSION,
+        "artifactType": f"{REPORT_ARTIFACT_TYPE}-pdf-source",
+        "generatedAt": generated_at,
+        "testSessionId": session_id,
+        "session": {
+            **_session_summary(session),
+            "registration": session.get("registration"),
+        },
+        "summary": summary,
+        "certificationRequest": certification,
+        "vectorSets": vector_reports,
+        "disclaimer": REPORT_DISCLAIMER,
+    }
+    content_sha256 = sha256_json(report)
+    report["reportId"] = f"NCCU-ACVP-SESSION-{session_id}-{content_sha256[:12]}"
+    report["reportSha256"] = sha256_json(report)
+    return report
+
+
+def download_test_session_report_pdf(session_id: str) -> Any:
+    report = get_test_session_report(session_id)
+    if isinstance(report, JSONResponse):
+        return report
+    pdf = render_validation_report_pdf(report)
+    safe_session_id = re.sub(r"[^A-Za-z0-9._-]+", "-", session_id).strip("-") or "session"
+    filename = f"NCCU-ACVP-{safe_session_id}-validation-report.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
     )
 
 

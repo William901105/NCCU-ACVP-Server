@@ -4,6 +4,7 @@ import {
   ApiError,
   clearStoredAccessToken,
   createAcvpSession,
+  downloadAcvpSessionReportPdf,
   getAcvpSession,
   getAcvpSessionResults,
   getAcvpSessionVectorSets,
@@ -16,7 +17,7 @@ import {
   submitAcvpVectorSetResults
 } from "./api";
 import type { AccessToken } from "./api";
-import { downloadJson } from "./acvp";
+import { downloadBlob, downloadJson } from "./acvp";
 import JsonViewer from "./components/JsonViewer";
 import { buildRegistrationAlgorithms } from "./registration";
 import { FIPS_REGISTRY, getFipsConfig } from "./registry";
@@ -85,6 +86,7 @@ export default function App() {
     config,
     seedError
   );
+  const sessionReportAvailable = isSessionReportAvailable(activeSession, sessionResults);
   useEffect(() => {
     if (!accessToken) {
       setNotice((current) =>
@@ -290,6 +292,17 @@ export default function App() {
       return;
     }
     downloadJson(value, `${artifactStem(activeVectorSet, activeVectorSummary, activeVectorSetId)}-${kind}.json`);
+  }
+
+  async function downloadPdfReport() {
+    if (!activeSession || !sessionReportAvailable) {
+      return;
+    }
+    await runBusy(async () => {
+      const file = await downloadAcvpSessionReportPdf(activeSession.testSessionId);
+      downloadBlob(file.blob, file.filename);
+      setNotice({ text: "PDF validation report downloaded.", tone: "success" });
+    });
   }
 
   async function runBusy(work: () => Promise<void>) {
@@ -537,6 +550,19 @@ export default function App() {
             >
               Download session results JSON
             </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void downloadPdfReport()}
+              disabled={!sessionReportAvailable || isBusy}
+              title={
+                sessionReportAvailable
+                  ? "Download the complete test-session validation report"
+                  : "The PDF report is available after every vector set validation completes."
+              }
+            >
+              Download PDF report
+            </button>
           </div>
           <ResultList result={vectorResult} sessionResults={sessionResults} />
           <JsonPane title="Vector set results" value={vectorResult?.raw ?? null} />
@@ -723,6 +749,26 @@ function ResultList({
       ))}
     </div>
   );
+}
+
+function isSessionReportAvailable(
+  session: AcvpSessionDetail | null,
+  results: NormalizedSessionResultsView | null
+): boolean {
+  if (!session || session.vectorSetCount < 1) {
+    return false;
+  }
+  if (session.pendingVectorSetCount === 0) {
+    return true;
+  }
+  if (!results || results.results.length !== session.vectorSetCount) {
+    return false;
+  }
+  const pendingDispositions = new Set(["unreceived", "received", "incomplete", "pending"]);
+  return results.results.every((item) => {
+    const disposition = (item.disposition ?? item.status).trim().toLowerCase();
+    return disposition.length > 0 && !pendingDispositions.has(disposition);
+  });
 }
 
 function validateRegistration(

@@ -25,10 +25,14 @@ export function unwrapAcvpEnvelope<T>(payload: unknown): T {
 }
 
 export function downloadJson(value: unknown, filename: string): void {
-  const safeFilename = sanitizeFilename(filename);
   const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
     type: "application/json"
   });
+  downloadBlob(blob, filename);
+}
+
+export function downloadBlob(blob: Blob, filename: string): void {
+  const safeFilename = sanitizeFilename(filename);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -44,7 +48,7 @@ export function downloadJson(value: unknown, filename: string): void {
 
 export function sanitizeFilename(value: string): string {
   const sanitized = value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  return sanitized || "acvp.json";
+  return sanitized || "acvp-report";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

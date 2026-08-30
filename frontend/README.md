@@ -3,8 +3,9 @@
 The frontend is the strict FIPS 203 / ML-KEM and FIPS 204 / ML-DSA ACVP client
 surface. It obtains and stores a short-lived access token, creates registration
 sessions, downloads prompt vector sets, accepts IUT responses and displays NIST
-GenVal dispositions. It does not generate cryptographic responses or expose
-server-side expected results.
+GenVal dispositions. After all vector sets finish validation, it downloads a
+single complete test-session PDF report. It does not generate cryptographic
+responses or expose server-side expected results.
 
 For manual or vendor acceptance, use the repository Docker deployment described
 in [`../DEPLOYMENT.md`](../DEPLOYMENT.md). Nginx then serves the frontend at
